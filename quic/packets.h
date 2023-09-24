@@ -1,0 +1,209 @@
+//
+// Created by andrea on 31/08/23.
+//
+
+#ifndef PACKETS
+#define PACKETS
+
+#include "base.h"
+#include "transport_params.h"
+#include "quic_conn.h"
+#include "frames.h"
+#include "quic_errors.h"
+
+/**
+ * To indicate the header format, the packet most-significant
+ * bit is either set to 1 (long header) or 0 (short header).
+ * Here, the packet first byte is used to specify the header
+ * format and other packet-specific information.
+ */
+#define LONG_HEADER_FORM 0xC0
+#define SHORT_HEADER_FORM 0x40
+
+#define PACKET_TYPE_MASK 0xC0
+#define SPIN_BIT_MASK 0x20;
+#define SHORT_RESERVED_BITS_MASK 0x18
+#define KEY_PHASE_MASK 0x04
+#define PACKET_NUMBER_LENGTH_MASK 0x03
+
+// For long packets format only
+#define PACKET_TYPE_INITIAL 0x00
+#define PACKET_TYPE_0_RTT 0x10
+#define PACKET_TYPE_HANDSHAKE 0x20
+#define PACKET_TYPE_RETRY 0x30
+#define TYPE_SPECIFIC_BITS_MASK 0x30
+#define LONG_RESERVED_BITS_MASK 0x0C
+
+enum PacketNumberSpace {
+    INITIAL = 0,
+    HANDSHAKE = 1,
+    APPLICATION_DATA = 2
+};
+
+// General packet struct, used for receiver window
+typedef struct packet_t {
+    pkt_num pkt_num;            // Packet number
+    num_space space;            // Packet number space
+    size_t length;              // Packet length in bytes (header + payload)
+    time_ms send_time;          // Time at which the packet has been sent (in ms)
+    bool acked;                 // States if the packet has been acknowledged or not
+    bool ack_eliciting;         // 0 = packet is not ack-eliciting, 1 = packet is ack_pkt_range-eliciting
+    bool in_flight;             // 0 = packet is not in flight, 1 = packet is in flight
+    bool lost;                  // 0 = packet is not lost, 1 = packet is lost
+    void *pkt;                  // Actual packet
+} packet;
+
+// Long header packet format
+typedef struct long_header_pkt_t {
+    uint8_t first_byte;
+    uint32_t version;
+    conn_id dest_conn_id;
+    conn_id src_conn_id;
+    void *payload;
+} long_header_pkt;
+
+/**
+ * Initial Packet format:\n
+ * <pre> Initial Packet {\n
+        Header Form (1) = 1,\n
+        Fixed Bit (1) = 1,\n
+        Long Packet Type (2) = 0,\n
+        Reserved Bits (2),\n
+        Packet Number Length (2),\n
+        Version (32),\n
+        Destination Connection ID Length (8),\n
+        Destination Connection ID (0..160),\n
+        Source Connection ID Length (8),\n
+        Source Connection ID (0..160),\n
+        Token Length (i),\n
+        Token (..),\n
+        Length (i),\n
+        Packet Number (8..32),\n
+        Packet Payload (8..),\n
+    }</pre>
+ * @see <a href="https://datatracker.ietf.org/doc/html/rfc9000#name-initial-packet">Initial Packet - RFC 9000</a>
+ */
+typedef struct initial_packet_t {
+    uint8_t first_byte;
+    uint32_t version;
+    conn_id dest_conn_id;
+    conn_id src_conn_id;
+    varint *token_len;
+    void *token;
+    varint *transport_parameters_number;
+    transport_parameter *transport_parameters[17];
+    varint *length;
+    pkt_num packet_number;
+    char *payload;
+} initial_packet;
+
+/**
+ * 0-RTT Packet format:\n
+ * <pre> 0-RTT Packet {\n
+        Header Form (1) = 1,\n
+        Fixed Bit (1) = 1,\n
+        Long Packet Type (2) = 1,\n
+        Reserved Bits (2),\n
+        Packet Number Length (2),\n
+        Version (32),\n
+        Destination Connection ID Length (8),\n
+        Destination Connection ID (0..160),\n
+        Source Connection ID Length (8),\n
+        Source Connection ID (0..160),\n
+        Length (i),\n
+        Packet Number (8..32),\n
+        Packet Payload (8..),\n
+        }</pre>
+ * @see <a href="https://datatracker.ietf.org/doc/html/rfc9000#name-0-rtt">0-RTT Packet - RFC 9000</a>
+ */
+typedef struct zero_rtt_packet_t {
+    uint8_t first_byte;
+    uint32_t version;
+    size_t dest_conn_id_len;
+    conn_id dest_conn_id;
+    size_t src_conn_id_len;
+    conn_id src_conn_id;
+    varint *length;
+    void *packet_number;
+    char *payload;
+} zero_rtt_packet;
+
+/**
+ * Retry Packet format:\n
+ * <pre> Retry Packet {\n
+        Header Form (1) = 1,\n
+        Fixed Bit (1) = 1,\n
+        Long Packet Type (2) = 3,\n
+        Unused (4),\n
+        Version (32),\n
+        Destination Connection ID Length (8),\n
+        Destination Connection ID (0..160),\n
+        Source Connection ID Length (8),\n
+        Source Connection ID (0..160),\n
+        Retry Token (..),\n
+        Retry Integrity Tag (128),\n
+        }</pre>
+ * @see <a href="https://datatracker.ietf.org/doc/html/rfc9000#name-retry-packet">Retry Packet - RFC 9000</a>
+ */
+typedef struct retry_packet_t {
+    uint8_t first_byte;
+    uint32_t version;
+    size_t dest_conn_id_len;
+    conn_id dest_conn_id;
+    size_t src_conn_id_len;
+    conn_id src_conn_id;
+    void *retry_token;
+    uint64_t retry_integrity_tag[2];
+} retry_packet;
+
+typedef struct one_rtt_packet_t {
+    uint8_t first_byte;
+    conn_id dest_connection_id;
+    pkt_num packet_number;
+    size_t length;
+    void *payload;
+} one_rtt_packet;
+
+void build_initial_packet(conn_id dest_conn_id, conn_id src_conn_id, varint *token_len, void *token,
+                          varint *length, varint *transport_parameters_number,
+                          void *payload, initial_packet *pkt);
+
+void build_zero_rtt_packet(conn_id dest_conn_id, conn_id src_conn_id, varint *length,
+                           void *packet_number, void *payload, zero_rtt_packet *pkt);
+
+void build_retry_packet(conn_id dest_conn_id, conn_id src_conn_id, void *retry_token,
+                        const uint64_t *retry_integrity_tag, retry_packet *pkt);
+
+void build_one_rtt_packet(conn_id dest_conn_id, size_t, void *payload, one_rtt_packet *pkt);
+
+ssize_t write_packet_to_buf(char *, size_t off, const void *);
+
+size_t initial_pkt_len(const initial_packet *);
+
+size_t zero_rtt_pkt_len(const zero_rtt_packet *);
+
+size_t retry_pkt_len(const retry_packet *);
+
+size_t one_rtt_pkt_len(const one_rtt_packet *);
+
+int read_initial_packet(long_header_pkt *, initial_packet *, quic_connection *);
+
+int read_zero_rtt_packet(long_header_pkt *, zero_rtt_packet *);
+
+int read_retry_packet(long_header_pkt *, retry_packet *);
+
+int read_one_rtt_packet(void *, one_rtt_packet *);
+
+int set_pkt_num(void *, pkt_num);
+
+void *encode(pkt_num, size_t);
+
+void *encode_pkt_num(pkt_num, ssize_t, size_t *);
+
+pkt_num decode_pkt_num(pkt_num, pkt_num, size_t);
+
+int process_packet_payload(const char *, pkt_num, size_t, num_space, quic_connection *);
+
+int check_incoming_dgram(struct sockaddr_in *, quic_connection *);
+
+#endif //PACKETS
