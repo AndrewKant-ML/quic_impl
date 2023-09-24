@@ -2,7 +2,6 @@
 // Created by andrea on 17/09/23.
 //
 
-#include "base.h"
 #include "quic_conn.h"
 #include "quic_errors.h"
 
@@ -147,13 +146,15 @@ int is_lost(sender_window *wnd, packet *pkt, size_t start_index, time_t threshol
  */
 size_t count_to_be_sent(sender_window *wnd) {
     size_t count = 0, i = wnd->read_index;
-    while (i != ((wnd->write_index + 1) % BUF_CAPACITY)) {
-        if (wnd->buffer[i]->send_time == 0 &&
-            !(wnd->buffer[i]->in_flight ||
-              wnd->buffer[i]->acked ||
-              wnd->buffer[i]->lost))
+    packet *pkt = wnd->buffer[i];
+    while (i != wnd->write_index) {
+        if (pkt->send_time == 0 &&
+            !(pkt->in_flight ||
+              pkt->acked ||
+              pkt->lost))
             count++;
         i = (i + 1) % BUF_CAPACITY;
+        pkt = wnd->buffer[i];
     }
     return count;
 }
@@ -225,7 +226,7 @@ int put_in_sender_window(sender_window *wnd, packet *pkt) {
     }
     pkt_num num = get_largest_in_space(wnd, pkt->space)->pkt_num;
     pkt->pkt_num = num + 1;
-    if (set_pkt_num(&pkt, pkt->pkt_num) < 0)
+    if (set_pkt_num(pkt->pkt, pkt->pkt_num) < 0)
         return -1;
     wnd->buffer[wnd->write_index] = pkt;
     wnd->write_index = (wnd->write_index + 1) % BUF_CAPACITY;

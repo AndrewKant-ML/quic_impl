@@ -54,25 +54,25 @@
 #define TYPE_CONN_CLOSE_APP 0x1D
 #define TYPE_HANDSHAKE_DONE 0x1E
 
-typedef struct frame_t {
+struct frame_t {
     uint8_t type;
     void *frame_data;
-} frame;
+};
 
 // ACK Range
-typedef struct ack_range_t {
+struct ack_range_t {
     size_t gap;
     size_t ack_range_len;
-} ack_range;
+};
 
-typedef struct ack_frame_t {
+struct ack_frame_t {
     uint8_t type;
     pkt_num largest_acked;
     time_ms ack_delay;
     size_t ack_range_count;
     size_t first_ack_range;
     ack_range **ranges;
-} ack_frame;
+};
 
 void new_ack_range(size_t, size_t, ack_range *);
 

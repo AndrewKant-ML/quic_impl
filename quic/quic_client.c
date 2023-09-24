@@ -21,8 +21,8 @@ int quic_connect(int sd, quic_connection *conn) {
         transport_parameter *parameters = (transport_parameter *) malloc(8 * sizeof(transport_parameter));
         build_client_transport_params(parameters, conn->local_conn_ids[0]);
         initial_packet initial_pkt;
-        build_initial_packet(conn->peer_conn_ids[0], conn->local_conn_ids[0], write_var_int_62(0), NULL,
-                             write_var_int_62(0), write_var_int_62(8), NULL, &initial_pkt);
+        build_initial_packet(conn->peer_conn_ids[0], conn->local_conn_ids[0], 0,
+                             8, NULL, &initial_pkt);
         for (int i = 0; i < 8; i++) {
             initial_pkt.transport_parameters[i] = (transport_parameter *) malloc(sizeof(transport_parameter));
             memcpy((void *) initial_pkt.transport_parameters[i], (void *) &parameters[i], sizeof(transport_parameter));
@@ -37,12 +37,18 @@ int quic_connect(int sd, quic_connection *conn) {
         pkt.acked = false;
         pkt.in_flight = false;
         pkt.send_time = 0;
+        pkt.pkt = calloc(1, pkt.length);
+        memcpy(pkt.pkt, (void *) &initial_pkt, pkt.length);
 
         if (enqueue(&pkt, conn) == 0) {
-            if (send_packets(sd, conn) != 0)
+            if (send_packets(sd, conn) != 0) {
                 print_quic_error("Cannot send packet to server.");
-        } else
+                return -1;
+            }
+        } else {
             print_quic_error("Error while enqueuing packet.");
+            return -1;
+        }
         return 0;
     }
     return -1;

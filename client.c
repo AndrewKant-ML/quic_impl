@@ -5,7 +5,7 @@
 #include "client.h"
 
 char *serv_addr = "127.0.0.1";
-int serv_port = 501;
+int serv_port = 5010;
 double loss_prob = 0;
 int verbose = 0;
 
@@ -32,7 +32,7 @@ int verbose = 0;
     // Address initialization
     memset((void *) &addr, 0, sizeof(addr));
     addr.sin_family = AF_INET;
-    addr.sin_port = htons(SERVER_PORT);
+    addr.sin_port = htons(serv_port);
 
     // Address building
     if (inet_pton(AF_INET, serv_addr, &addr.sin_addr) <= 0) {
@@ -44,36 +44,40 @@ int verbose = 0;
     // Opens connection
     quic_connection conn;
     conn.addr = addr;
-    quic_connect(sock, &conn);
-
-    while (1) {
-        printf("Insert a command: ");
-        FD_SET(fileno(stdin), &rset);
-        FD_SET(sock, &rset);
-        maxd = MAX(fileno(stdin), sock) + 1;
-        if (select(maxd, &rset, NULL, NULL, NULL) < 0) {
-            print_error("Select error.");
-            exit(EXIT_FAILURE);
-        }
-
-        // Checks if socket is readable
-        if (FD_ISSET(sock, &rset)) {
-            // Must read something
-            if ((n = recvfrom(sock, buf, sizeof(buf), 0, (struct sockaddr *) &addr, &addr_len)) < 0) {
-                print_error("Error while reading from socket.");
-                // todo close everything
+    if (quic_connect(sock, &conn) == 0) {
+        while (1) {
+            printf("Insert a command: ");
+            fflush(stdout);
+            FD_SET(fileno(stdin), &rset);
+            FD_SET(sock, &rset);
+            maxd = MAX(fileno(stdin), sock) + 1;
+            if (select(maxd, &rset, NULL, NULL, NULL) < 0) {
+                print_error("Select error.");
+                exit(EXIT_FAILURE);
             }
-            // todo process incoming packet
 
-        }
+            // Checks if socket is readable
+            if (FD_ISSET(sock, &rset)) {
+                // Must read something
+                if ((n = recvfrom(sock, buf, sizeof(buf), 0, (struct sockaddr *) &addr, &addr_len)) < 0) {
+                    print_error("Error while reading from socket.");
+                    // todo close everything
+                }
+                // todo process incoming packet
 
-        if (FD_ISSET(fileno(stdin), &rset)) {
-            if(scanf("%s", msg) == 1) {
-                if (check_msg_semantics(msg) == 0) {
-                    // TODO build and process packet
+            }
+
+            if (FD_ISSET(fileno(stdin), &rset)) {
+                if (scanf("%s", msg) == 1) {
+                    if (check_msg_semantics(msg) == 0) {
+                        // TODO build and process packet
+                    }
                 }
             }
         }
+    } else {
+        print_error("Cannot establish connection to server");
+        exit(EXIT_FAILURE);
     }
 }*/
 

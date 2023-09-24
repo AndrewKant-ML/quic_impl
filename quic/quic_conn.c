@@ -5,9 +5,6 @@
  * · acknowledgment
  */
 
-#include <sys/param.h>
-#include <math.h>
-
 #include "quic_conn.h"
 #include "quic_errors.h"
 
@@ -92,14 +89,22 @@ int new_connection(quic_connection *conn, enum peer_type type) {
     conn->swnd.loss_time[HANDSHAKE] = 0;
     conn->swnd.loss_time[APPLICATION_DATA] = 0;
 
+    conn->swnd.write_index = 0;
+    conn->swnd.read_index = 0;
     conn->rwnd.write_index = 0;
     conn->rwnd.read_index = 0;
+
+    for (int i = 0; i < BUF_CAPACITY; i++) {
+        conn->swnd.buffer[i] = (packet *) calloc(1, sizeof(packet));
+        conn->rwnd.buffer[i] = (transfert_msg *) calloc(1, sizeof(transfert_msg));
+    }
 
     conn->peer_conn_ids = (conn_id *) malloc(sizeof(conn_id));
     conn->local_conn_ids_num = 0;
     conn->peer_conn_ids_num = 0;
     conn->peer_conn_ids_limit = 0;
     conn->handshake_done = false;
+    conn->max_datagram_size = MAX_DATAGRAM_SIZE;
 
     // Saves newly created connection into active connections array
     int i = 0;
@@ -142,9 +147,9 @@ int issue_new_conn_id(quic_connection *conn) {
     // Checks whether the generated ID is retired or used by another active connection
     do {
         generated = ++last_generated;
-    } while (is_retired(generated) ||
-             is_globally_used(generated) ||
-             is_internally_used(generated, conn) ||
+    } while ((is_retired(generated) ||
+              is_globally_used(generated) ||
+              is_internally_used(generated, conn)) &&
              generated < UINT64_MAX);
 
     // If connection IDs generation has achieved its limit, an error is thrown.
@@ -343,7 +348,7 @@ void on_packet_sent_cc(quic_connection *conn, size_t sent_bytes) {
  * @return      0 on success, -1 on error. Also, on errors the connection must be closed with an error of type TRANSPORT_PARAMETER_ERROR
  */
 int read_transport_parameters(initial_packet *pkt, quic_connection *conn, enum peer_type type) {
-    for (int i = 0; i < read_var_int_62(pkt->transport_parameters_number); i++) {
+    for (int i = 0; i < pkt->transport_parameters_number; i++) {
         transport_parameter *tp = pkt->transport_parameters[i];
         uint8_t tp_id = tp->id;
         size_t tp_len = tp->len;
@@ -762,8 +767,7 @@ int close_connection_with_error_code(int fd, conn_id dest_conn_id, conn_id src_c
     if (!conn->handshake_done) {
         // Handshake phase, send frame in Initial packet
         initial_packet pkt;
-        build_initial_packet(dest_conn_id, src_conn_id, write_var_int_62(0), NULL, write_var_int_62(strlen(stream_buf)),
-                             write_var_int_62(0), stream_buf, &pkt);
+        build_initial_packet(dest_conn_id, src_conn_id, strlen(stream_buf), 0, stream_buf, &pkt);
         set_pkt_num((void *) &pkt, 1);
         size_t initial_len = initial_pkt_len(&pkt);
         char *buf = (char *) malloc(initial_len);
@@ -773,9 +777,6 @@ int close_connection_with_error_code(int fd, conn_id dest_conn_id, conn_id src_c
             return -1;
         }
         // Deallocates used memory
-        free(pkt.length);
-        free(pkt.token_len);
-        free(pkt.transport_parameters_number);
         free(buf);
         return 0;
     } else {

@@ -47,7 +47,7 @@ void write_response(uint8_t code, char *list, char *buf) {
         strcat(buf, list);
     } else {
         // No response
-        snprintf(buf, sizeof(code) + 1, "%ud", code);
+        snprintf(buf, sizeof(code) + 1, "%u", code);
     }
 }
 

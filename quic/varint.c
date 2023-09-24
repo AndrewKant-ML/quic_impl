@@ -81,23 +81,23 @@ uint64_t read_var_int_62(const varint *value) {
     uint64_t ret = 0;
 
     switch (length) {
-        case 0: {
+        case 1: {
             ret = value[0] & 0x3f;
             break;
         }
-        case 1: {
+        case 2: {
             ret += (value[0] & 0x3f) << 8;
             ret += value[1];
             break;
         }
-        case 2: {
+        case 4: {
             ret += (value[0] & 0x3f) << 24;
             ret += (value[1] & 0xff) << 16;
             ret += (value[2] & 0xff) << 8;
             ret += value[3];
             break;
         }
-        case 3: {
+        case 8: {
             ret += ((uint64_t) value[0] & 0x3f) << 56;
             ret += ((uint64_t) value[1] & 0xff) << 48;
             ret += ((uint64_t) value[2] & 0xff) << 40;
@@ -116,7 +116,8 @@ uint64_t read_var_int_62(const varint *value) {
 }
 
 size_t varint_len(const varint *value) {
-    return (value[0] & 0xc0) >> 6;
+    size_t i = (value[0] & 0xc0) >> 6;
+    return (size_t) pow(2, i);
 }
 
 size_t bytes_needed(uint64_t value) {

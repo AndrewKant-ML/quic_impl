@@ -19,7 +19,7 @@ ssize_t n;
 struct sockaddr_in serveraddr, cliaddr;
 socklen_t len;
 quic_connection *cli_conn;
-time_t timeout;
+time_ms timeout;
 
 int start_server(int port) {
     if ((listensd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
@@ -148,9 +148,8 @@ int process_incoming_packet(const char *buf, struct sockaddr_in *addr) {
                         size_t payload_len;
                         char *payload = write_frame_into_buf((frame *) &ack, &payload_len);
                         initial_packet new_init_pkt;
-                        build_initial_packet(initial_pkt.src_conn_id, conn->local_conn_ids[0], write_var_int_62(0),
-                                             NULL, write_var_int_62(payload_len),
-                                             write_var_int_62(9), (void *) payload, &new_init_pkt);
+                        build_initial_packet(initial_pkt.src_conn_id, conn->local_conn_ids[0], payload_len,
+                                             9, (void *) payload, &new_init_pkt);
                         new_init_pkt.packet_number = 0;
                         // Sets initial packet transport parameters
                         transport_parameter parameters[9];
@@ -159,7 +158,7 @@ int process_incoming_packet(const char *buf, struct sockaddr_in *addr) {
                             new_init_pkt.transport_parameters[i] = &parameters[i];
                         }
                         packet pkt;
-                        pkt.length = read_var_int_62(new_init_pkt.length);
+                        pkt.length = new_init_pkt.length;
                         pkt.space = INITIAL;
                         pkt.acked = false;
                         pkt.in_flight = false;

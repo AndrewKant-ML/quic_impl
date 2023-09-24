@@ -5,6 +5,7 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <math.h>
 
 #define kVarInt62ErrorMask UINT64_C(0xc000000000000000)
 #define kVarInt62Mask8Bytes UINT64_C(0x3fffffffc0000000)

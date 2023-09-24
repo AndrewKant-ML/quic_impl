@@ -2,28 +2,21 @@
 // Created by andrea on 05/09/23.
 //
 
-#include <string.h>
-#include <math.h>
-
 #include "packets.h"
 
-void build_initial_packet(conn_id dest_conn_id, conn_id src_conn_id, varint *token_len,
-                          void *token, varint *length, varint *transport_parameters_number,
-                          void *payload, initial_packet *pkt) {
+void build_initial_packet(conn_id dest_conn_id, conn_id src_conn_id, size_t length,
+                          size_t transport_parameters_number, void *payload,
+                          initial_packet *pkt) {
     pkt->first_byte = LONG_HEADER_FORM | PACKET_TYPE_INITIAL;
     pkt->version = VERSION;
     pkt->dest_conn_id = dest_conn_id;
     pkt->src_conn_id = src_conn_id;
-    pkt->token_len = token_len;
-    pkt->token = token;
     pkt->transport_parameters_number = transport_parameters_number;
 
-    size_t len = read_var_int_62(length);
-    free(length);
-    size_t diff = MIN_DATAGRAM_SIZE - len;
+    size_t diff = MIN_DATAGRAM_SIZE - length;
     void *p = payload;
     if (diff > 0)
-        p = realloc(payload, len + diff);
+        p = realloc(payload, length + diff);
     if (p == NULL) {
         print_quic_error("Error while padding Initial packet");
         return;
@@ -31,12 +24,12 @@ void build_initial_packet(conn_id dest_conn_id, conn_id src_conn_id, varint *tok
     void *buf = p;
     uint8_t src = TYPE_PADDING;
     size_t src_len = sizeof(src);
-    while (len < MIN_DATAGRAM_SIZE) {
+    while (length < MIN_DATAGRAM_SIZE) {
         memcpy(buf, (void *) &src, src_len);
         buf += src_len;
-        len += src;
+        length += src_len;
     }
-    pkt->length = write_var_int_62(len);
+    pkt->length = length;
     pkt->payload = p;
 }
 
@@ -116,18 +109,10 @@ ssize_t write_packet_to_buf(char *buffer, size_t size, const void *pkt) {
                     buf += len;
                     memcpy(buf, (char *) &(initial->src_conn_id), len);
                     buf += len;
-                    len = varint_len(initial->token_len);
-                    memcpy(buf, (char *) &(initial->token_len), len);
+                    len = sizeof(initial->transport_parameters_number);
+                    memcpy(buf, (void *) &initial->transport_parameters_number, len);
                     buf += len;
-                    len = read_var_int_62(initial->token_len);
-                    if (len > 0) {
-                        memcpy(buf, (char *) &(initial->token), len);
-                        buf += len;
-                    }
-                    len = varint_len(initial->transport_parameters_number);
-                    memcpy(buf, (char *) &(initial->transport_parameters_number), len);
-                    buf += len;
-                    size_t n = read_var_int_62(initial->transport_parameters_number);
+                    size_t n = initial->transport_parameters_number;
                     transport_parameter *tp;
                     for (int i = 0; i < n; i++) {
                         tp = initial->transport_parameters[i];
@@ -141,13 +126,13 @@ ssize_t write_packet_to_buf(char *buffer, size_t size, const void *pkt) {
                         memcpy(buf, (char *) &(tp->data), len);
                         buf += len;
                     }
-                    len = varint_len(initial->length);
+                    len = sizeof(initial->length);
                     memcpy(buf, (char *) &(initial->length), len);
                     buf += len;
-                    len = first_byte & PACKET_NUMBER_LENGTH_MASK + 1;
-                    memcpy(buf, (char *) initial->packet_number, len);
+                    len = (size_t) pow(2, first_byte & PACKET_NUMBER_LENGTH_MASK);
+                    memcpy(buf, (char *) &initial->packet_number, len);
                     buf += len;
-                    len = read_var_int_62(initial->length);
+                    len = initial->length;
                     if (len > 0)
                         memcpy(buf, (char *) initial->payload, len);
                     return 0;
@@ -177,7 +162,7 @@ ssize_t write_packet_to_buf(char *buffer, size_t size, const void *pkt) {
             size_t len = sizeof(one_rtt->dest_connection_id);
             memcpy(buf, (char *) &(one_rtt->dest_connection_id), len);
             buf += len;
-            len = first_byte & PACKET_NUMBER_LENGTH_MASK + 1;
+            len = (first_byte & PACKET_NUMBER_LENGTH_MASK) + 1;
             memcpy(buf, (void *) &(one_rtt->packet_number), len);
             buf += len;
             varint *pkt_len = write_var_int_62(one_rtt->length);
@@ -205,12 +190,11 @@ ssize_t write_packet_to_buf(char *buffer, size_t size, const void *pkt) {
  */
 size_t initial_pkt_len(const initial_packet *pkt) {
     size_t len = sizeof(uint8_t) + sizeof(uint32_t) + 2 * sizeof(conn_id);
-    len += varint_len(pkt->token_len) + read_var_int_62(pkt->token_len);
-    len += varint_len(pkt->transport_parameters_number) +
-           read_var_int_62(pkt->transport_parameters_number) * sizeof(transport_parameter *);
-    len += varint_len(pkt->length) + read_var_int_62(pkt->length);
+    len += sizeof(pkt->transport_parameters_number) +
+           pkt->transport_parameters_number * sizeof(transport_parameter *);
+    len += sizeof(pkt->length) + pkt->length;
     // Packet number length
-    len += pkt->first_byte & PACKET_NUMBER_LENGTH_MASK + 1;
+    len += (pkt->first_byte & PACKET_NUMBER_LENGTH_MASK) + 1;
     return len;
 }
 
@@ -230,7 +214,7 @@ size_t retry_pkt_len(const retry_packet *pkt) {
 size_t one_rtt_pkt_len(const one_rtt_packet *pkt) {
     size_t len = sizeof(uint8_t) + sizeof(conn_id);
     // Packet number length
-    len += pkt->first_byte & PACKET_NUMBER_LENGTH_MASK + 1;
+    len += (pkt->first_byte & PACKET_NUMBER_LENGTH_MASK) + 1;
     varint *pkt_len = write_var_int_62(pkt->length);
     len += varint_len(pkt_len) + pkt->length;
     free(pkt_len);
@@ -253,26 +237,8 @@ int read_initial_packet(long_header_pkt *pkt, initial_packet *dest, quic_connect
     dest->version = pkt->version;
     dest->dest_conn_id = pkt->dest_conn_id;
     dest->src_conn_id = pkt->src_conn_id;
-    uint64_t token_len = read_var_int_62(pkt->payload);
-    dest->token_len = write_var_int_62(token_len);
-    if (token_len == 0) {
-        // No retry token
-        dest->token = NULL;
-        pkt->payload++;
-    } else {
-        // Parse retry token
-        pkt->payload += varint_len(dest->token_len);
-        dest->token = malloc(token_len);
-        if (dest->token == NULL) {
-            // malloc() error
-            print_quic_error("Error while allocating retry token buffer.");
-            return -1;
-        }
-        memcpy(dest->token, pkt->payload, token_len);
-        pkt->payload += token_len;
-    }
     uint64_t tp_num = read_var_int_62(pkt->payload);
-    dest->transport_parameters_number = write_var_int_62(tp_num);
+    dest->transport_parameters_number = tp_num;
     size_t tp_len;
     for (int i = 0; i < tp_num; i++) {
         dest->transport_parameters[i] = malloc(sizeof(transport_parameter));
@@ -292,7 +258,7 @@ int read_initial_packet(long_header_pkt *pkt, initial_packet *dest, quic_connect
     }
 
     size_t pkt_len = read_var_int_62(pkt->payload);
-    dest->length = write_var_int_62(pkt_len);
+    dest->length = pkt_len;
     size_t pkt_num_len = (dest->first_byte & PACKET_NUMBER_LENGTH_MASK);
     dest->packet_number = read_var_int_62(pkt->payload);
     pkt->payload += (size_t) pow(2, (double) pkt_num_len);
@@ -338,14 +304,14 @@ int read_one_rtt_packet(void *pkt, one_rtt_packet *dest) {
  * @return      0 on success, -1 on errors
  */
 int set_pkt_num(void *pkt, pkt_num num) {
-    uint8_t header_type = *(uint8_t *) pkt & PACKET_TYPE_MASK;
+    uint8_t header_type = (*(uint8_t *) pkt) & PACKET_TYPE_MASK;
     if (header_type == LONG_HEADER_FORM) {
-        uint8_t pkt_type = *(uint8_t *) pkt & PACKET_TYPE_MASK;
+        uint8_t pkt_type = (*(uint8_t *) pkt) & TYPE_SPECIFIC_BITS_MASK;
         switch (pkt_type) {
             case PACKET_TYPE_INITIAL: {
                 initial_packet *init_pkt = (initial_packet *) pkt;
                 init_pkt->packet_number = num;
-                init_pkt->first_byte &= (uint8_t) log2((double) bytes_needed(num));
+                init_pkt->first_byte |= (uint8_t) log2((double) bytes_needed(num));
                 break;
             }
             case PACKET_TYPE_HANDSHAKE: {
