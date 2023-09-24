@@ -6,6 +6,7 @@
 #define QUIC_BASE
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <math.h>
 #include <time.h>
 #include <sys/param.h>
