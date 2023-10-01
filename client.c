@@ -9,7 +9,7 @@ int serv_port = 5010;
 double loss_prob = 0;
 int verbose = 0;
 
-/*int main(int argc, char *argv[]) {
+int main(int argc, char *argv[]) {
 
     process_arguments(argc, argv);
 
@@ -19,15 +19,17 @@ int verbose = 0;
     socklen_t addr_len;
     struct sockaddr_in addr;
     char msg[255];
-    void *buf[UDP_BUF_SIZE];
+    char buf[UDP_BUF_SIZE];
     fd_set rset;
     FD_ZERO(&rset);
+    time_ms curr_time;
 
     // Client socket creation
     if ((sock = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
-        print_error("Unable to create client socket");
+        print_error("Unable to create client socket.");
         exit(EXIT_FAILURE);
     }
+    print_log("Socket created");
 
     // Address initialization
     memset((void *) &addr, 0, sizeof(addr));
@@ -40,15 +42,19 @@ int verbose = 0;
         exit(EXIT_FAILURE);
     }
     addr_len = sizeof(addr);
+    print_log("Address parsed");
 
-    // Opens connection
-    quic_connection conn;
-    conn.addr = addr;
-    if (quic_connect(sock, &conn) == 0) {
+    // Sends connection opening request to the server
+    quic_connection *conn = (quic_connection *) calloc(1, sizeof(quic_connection));
+    conn->addr = addr;
+    if (quic_connect(sock, conn) == 0) {
+        // Waits for server data
         while (1) {
-            printf("Insert a command: ");
-            fflush(stdout);
-            FD_SET(fileno(stdin), &rset);
+            if (conn->handshake_done) {
+                printf("Insert a command: ");
+                fflush(stdout);
+                FD_SET(fileno(stdin), &rset);
+            }
             FD_SET(sock, &rset);
             maxd = MAX(fileno(stdin), sock) + 1;
             if (select(maxd, &rset, NULL, NULL, NULL) < 0) {
@@ -60,17 +66,43 @@ int verbose = 0;
             if (FD_ISSET(sock, &rset)) {
                 // Must read something
                 if ((n = recvfrom(sock, buf, sizeof(buf), 0, (struct sockaddr *) &addr, &addr_len)) < 0) {
-                    print_error("Error while reading from socket.");
+                    print_error("Error while reading from socket");
                     // todo close everything
                 }
-                // todo process incoming packet
 
+                if (n >= MIN_DATAGRAM_SIZE) {
+                    if ((curr_time = get_time_millis()) < 0) {
+                        log_quic_error("Cannot get current time");
+                    } else if (process_incoming_dgram(buf, n, CLIENT, &addr, curr_time, NULL) != -1) {
+                        if (conn->rwnd->write_index != conn->rwnd->read_index) {
+                            // There are packets in the receiver window
+                            if (process_received_packets(conn) != -1)
+                                log_msg("Packets processes successfully");
+                            else
+                                log_quic_error("Error while processing received packets");
+                        }
+
+                        if (conn->swnd->write_index != conn->swnd->read_index) {
+                            // There are packets to send
+                            if (send_packets(sock, conn) == 0)
+                                log_msg("Packets sent successfully");
+                            else
+                                log_quic_error("Error while sending enqueued packets");
+                        }
+                    } else {
+                        log_quic_error("Error while processing incoming datagram");
+                    }
+                } else {
+                    log_quic_error("Incoming datagram is too short");
+                }
+                memset(buf, 0, MAX_DATAGRAM_SIZE);
             }
 
             if (FD_ISSET(fileno(stdin), &rset)) {
                 if (scanf("%s", msg) == 1) {
                     if (check_msg_semantics(msg) == 0) {
-                        // TODO build and process packet
+                        // TODO build and send packet
+
                     }
                 }
             }
@@ -79,7 +111,7 @@ int verbose = 0;
         print_error("Cannot establish connection to server");
         exit(EXIT_FAILURE);
     }
-}*/
+}
 
 /**
  * @brief Processes program arguments

@@ -12,6 +12,8 @@
 
 int quic_connect(int, quic_connection *);
 
+int write_message_to_packets(char *, stream_id, quic_connection *);
+
 void build_client_transport_params(transport_parameter [8], conn_id);
 
 #endif //QUIC_CLIENT

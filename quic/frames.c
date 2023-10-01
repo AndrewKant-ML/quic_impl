@@ -15,8 +15,6 @@
  * @return      on success, the processed frame length, or -1 on errors
  */
 ssize_t process_frame(const char *buf, pkt_num num, num_space space, quic_connection *conn) {
-    frame response_frames[100] = {};
-    size_t generated_response_frames = 0;
     uint64_t frame_type = read_var_int_62((varint *) buf);
     bool generate_ack = false;
     if (frame_type >= TYPE_STREAM_BASE && frame_type <= TYPE_STREAM_BASE + 0x07) {
@@ -38,11 +36,13 @@ ssize_t process_frame(const char *buf, pkt_num num, num_space space, quic_connec
             end_stream = true;
         }
 
+        // TODO fix all this
+
         // Check stream ID
         switch (conn->peer_type) {
             case SERVER: {
                 if ((stream_id & STREAM_MASK) == STREAM_SRC_MASK + STREAM_SRC_MASK) {
-                    print_quic_error("Server cannot accept server-initiated unidirectional stream.");
+                    log_quic_error("Server cannot accept server-initiated unidirectional stream.");
                     // TODO send RESET_STREAM frame with connection error 400
                     return -1;
                 }
@@ -52,13 +52,13 @@ ssize_t process_frame(const char *buf, pkt_num num, num_space space, quic_connec
                 msg.type = get_incoming_message_type(buf);
                 if ((stream_id & STREAM_MODE_MASK) == 0 && msg.type == DATA) {
                     // Server cannot accept DATA messages in bidirectional streams
-                    print_quic_error("Server cannot accept DATA messages inside bidirectional streams.");
+                    log_quic_error("Server cannot accept DATA messages inside bidirectional streams.");
                     // TODO send RESET_STREAM frame with connection error 400
                     return -1;
                 }
                 if ((stream_id & STREAM_MODE_MASK) == STREAM_MODE_MASK && msg.type != DATA) {
                     // Server cannot accept LIST, GET or PUT messages
-                    print_quic_error("Server cannot accept request messages inside bidirectional streams.");
+                    log_quic_error("Server cannot accept request messages inside bidirectional streams.");
                     // in unidirectional streams (cannot send back response)
                     // TODO send RESET_STREAM frame with connection error 400
                     return -1;
@@ -71,17 +71,17 @@ ssize_t process_frame(const char *buf, pkt_num num, num_space space, quic_connec
                 strncat(msg.msg, (void *) buf, msg.len - 1);
                 msg.bytes_written = msg.len;
                 msg.end_reached = end_stream;
-                if (put_in_receiver_window(&(conn->rwnd), &msg, offset) == -1) {
-                    print_quic_error("Error while inserting received message into receiver window.");
+                /*if (put_in_receiver_window(&(conn->rwnd)) == -1) {
+                    log_quic_error("Error while inserting received message into receiver window.");
                     return -1;
-                }
+                }*/
                 /*if ((stream_id & STREAM_MODE_MASK) == 0)
                     // Bidirectional stream, server can only accept LIST, GET and PUT messages
                     switch (get_incoming_message_type(buf)) {
                         case LIST: {
                             char *res = parse_and_exec_list_msg(buf);
                             if (res == NULL) {
-                                print_quic_error("LIST command bad format.");
+                                log_quic_error("LIST command bad format.");
                                 // Send error response message
                                 frame rst_str_frame;
                                 rst_str_frame.type = TYPE_RESET_STREAM;
@@ -157,7 +157,7 @@ ssize_t process_frame(const char *buf, pkt_num num, num_space space, quic_connec
             }
             case CLIENT: {
                 if ((stream_id & STREAM_MASK) == STREAM_SRC_MASK) {
-                    print_quic_error("Client cannot accept client-initiated unidirectional stream.");
+                    log_quic_error("Client cannot accept client-initiated unidirectional stream.");
                     // TODO send RESET_STREAM frame with connection error 400
                     return -1;
                 }
@@ -167,7 +167,7 @@ ssize_t process_frame(const char *buf, pkt_num num, num_space space, quic_connec
                 msg.type = get_incoming_message_type(buf);
                 if ((stream_id & STREAM_MODE_MASK) == 0) {
                     if (msg.type == DATA) {
-                        print_quic_error("Client cannot accept DATA messages inside bidirectional streams.");
+                        log_quic_error("Client cannot accept DATA messages inside bidirectional streams.");
                         // TODO send RESET_STREAM frame with connection error 400
                         return -1;
                     } else {
@@ -175,7 +175,7 @@ ssize_t process_frame(const char *buf, pkt_num num, num_space space, quic_connec
                         // Checks opened streams for the request
                         int i;
                         for (i = 0; i < conn->bidi_streams_num; i++) {
-                            if (conn->bidi_streams[i]->id==stream_id) {
+                            if (conn->bidi_streams[i]->id == stream_id) {
                                 // Found request stream, put response into receiver window
                                 msg.stream_id = stream_id;
                                 msg.len = length + 1;
@@ -183,10 +183,10 @@ ssize_t process_frame(const char *buf, pkt_num num, num_space space, quic_connec
                                 strncat(msg.msg, (void *) buf, msg.len - 1);
                                 msg.bytes_written = msg.len;
                                 msg.end_reached = end_stream;
-                                if (put_in_receiver_window(&(conn->rwnd), &msg, offset) == -1) {
-                                    print_quic_error("Error while inserting received message into receiver window.");
-                                    return -1;
-                                }
+                                /*if (put_in_receiver_window(&(conn->rwnd), &msg, offset) == -1) {
+                                    log_quic_error("Error while inserting received message into receiver window.");
+                                    return -1; todo fix
+                                }*/
                                 return 0;
                             }
                         }
@@ -195,7 +195,7 @@ ssize_t process_frame(const char *buf, pkt_num num, num_space space, quic_connec
                 } else {
                     // Unidirectional streams, client can accept only DATA messages
                     if (msg.type != DATA) {
-                        print_quic_error("Client cannot accept request messages inside unidirectional streams.");
+                        log_quic_error("Client cannot accept request messages inside unidirectional streams.");
                         // TODO send RESET_STREAM frame with connection error 400
                         return -1;
                     }
@@ -206,10 +206,10 @@ ssize_t process_frame(const char *buf, pkt_num num, num_space space, quic_connec
                     strncat(msg.msg, (void *) buf, msg.len - 1);
                     msg.bytes_written = msg.len;
                     msg.end_reached = end_stream;
-                    if (put_in_receiver_window(&(conn->rwnd), &msg, offset) == -1) {
-                        print_quic_error("Error while inserting received message into receiver window.");
-                        return -1;
-                    }
+                    /*if (put_in_receiver_window(&(conn->rwnd), &msg, offset) == -1) {
+                        log_quic_error("Error while inserting received message into receiver window.");
+                        return -1; todo fix
+                    }*/
                     return 0;
                 }
             }
@@ -217,26 +217,27 @@ ssize_t process_frame(const char *buf, pkt_num num, num_space space, quic_connec
     }
     switch (frame_type) {
         case TYPE_PADDING: {
-            // Do nothing
-            break;
+            // Do nothing but generate ACK
+            return (ssize_t) bytes_needed(TYPE_PADDING);
         }
         case TYPE_PING: {
             // Must ACK packet
             generate_ack = true;
-            break;
+            return (ssize_t) bytes_needed(TYPE_PING);
         }
         case TYPE_ACK: {
             time_ms ack_time;
             if ((ack_time = get_time_millis()) == -1) {
-                print_quic_error("Cannot get current time.");
+                log_quic_error("Cannot get current time.");
                 return -1;
             }
             ack_frame ack;
-            if (parse_ack_frame(buf, &ack, conn, ack_time) == 0) {
+            ssize_t len;
+            if ((len = parse_ack_frame(buf, &ack, conn, ack_time)) > 0) {
                 pkt_num largest, smallest;
                 largest = ack.largest_acked;
                 smallest = largest - ack.first_ack_range;
-                if (ack_pkt_range(conn, smallest, largest, space) == 0) {
+                if (ack_pkt_range(conn, smallest, largest, space) != -1) {
                     // First acknowledge ok
                     int i = 0;
                     ack_range range;
@@ -249,7 +250,12 @@ ssize_t process_frame(const char *buf, pkt_num num, num_space space, quic_connec
                             return -1;
                         i++;
                     }
-                    on_ack_received(conn, &ack, space, ack_time);
+                    if (space == INITIAL) {
+                        conn->handshake_done = true;
+                        log_msg("Handshake completed");
+                    }
+                    on_ack_received(conn, &ack, space);
+                    return len;
                 }
             } else return -1;
         }
@@ -286,11 +292,10 @@ ssize_t process_frame(const char *buf, pkt_num num, num_space space, quic_connec
         case TYPE_HANDSHAKE_DONE: {
         }
         default: {
-            print_quic_error("Unsupported frame type.");
+            log_quic_error("Unsupported frame type.");
             return -1;
         }
     }
-    return 0;
 }
 
 /**
@@ -300,37 +305,42 @@ ssize_t process_frame(const char *buf, pkt_num num, num_space space, quic_connec
  * @param ack_frame the struct to where store the parsed data
  * @return          0 on success, -1 on errors
  */
-int parse_ack_frame(const char *raw, ack_frame *ack_frame, const quic_connection *conn, time_ms ack_time) {
+ssize_t parse_ack_frame(const char *raw, ack_frame *ack_frame, const quic_connection *conn, time_ms ack_time) {
+    size_t read = 0;
+
     ack_frame->type = TYPE_ACK;
-    raw += sizeof(ack_frame->type);
+    read += bytes_needed(ack_frame->type);
 
-    uint32_t largest_acked = read_var_int_62((varint *) raw);
+    uint32_t largest_acked = read_var_int_62((varint *) raw + read);
     ack_frame->largest_acked = largest_acked;
-    raw += sizeof(ack_frame->largest_acked);
+    read += bytes_needed(ack_frame->largest_acked);
 
-    ack_frame->ack_delay = read_var_int_62((varint *) raw);
-    raw += varint_len((varint *) raw);
+    ack_frame->ack_delay = read_var_int_62((varint *) raw + read) << ACK_DELAY_EXP;
+    read += varint_len((varint *) raw + read);
 
-    uint64_t ack_range_count = read_var_int_62((varint *) raw);
+    uint64_t ack_range_count = read_var_int_62((varint *) raw + read);
     ack_frame->ack_range_count = ack_range_count;
-    raw += sizeof(ack_range_count);
+    read += bytes_needed(ack_range_count);
 
-    ack_frame->first_ack_range = read_var_int_62((varint *) raw);
-    raw += sizeof(ack_frame->first_ack_range);
+    ack_frame->first_ack_range = read_var_int_62((varint *) raw + read);
+    read += bytes_needed(ack_frame->first_ack_range);
 
-    ack_frame->ranges = (ack_range **) malloc(ack_range_count * sizeof(ack_range *));
-    ack_range range;
-    for (int i = 0; i < ack_range_count; i++) {
-        ack_frame->ranges[i] = malloc(sizeof(ack_range));
-        range.gap = read_var_int_62((varint *) raw);
-        raw += sizeof(range.gap);
-        range.ack_range_len = read_var_int_62((varint *) raw);
-        raw += sizeof(range.ack_range_len);
-        memcpy(ack_frame->ranges[i], &range, sizeof(range));
-        // Resets buffer space
-        explicit_bzero(&range, sizeof(range));
-    }
-    return 0;
+    if (ack_range_count > 0) {
+        ack_frame->ranges = (ack_range **) calloc(ack_range_count, sizeof(ack_range *));
+        ack_range range;
+        for (int i = 0; i < ack_range_count; i++) {
+            ack_frame->ranges[i] = calloc(1, sizeof(ack_range));
+            range.gap = read_var_int_62((varint *) raw);
+            read += bytes_needed(range.gap);
+            range.ack_range_len = read_var_int_62((varint *) raw);
+            read += bytes_needed(range.ack_range_len);
+            memcpy(ack_frame->ranges[i], &range, sizeof(range));
+            // Resets buffer space
+            explicit_bzero(&range, sizeof(range));
+        }
+    } else
+        ack_frame->ranges = NULL;
+    return (ssize_t) read;
 }
 
 /**
@@ -414,26 +424,28 @@ void new_reset_stream_frame(stream_id stream_id, uint64_t appl_error_code, char 
  * @param data          the frame data
  * @param buf           the buffer to which store the frame
  */
-void new_stream_frame(stream_id stream_id, size_t offset, size_t length, char *data, char *buf) {
+size_t new_stream_frame(stream_id stream_id, size_t offset, size_t length, char *data, char *buf) {
+    size_t written = 0;
+
     varint *vi_stream_id = write_var_int_62(stream_id);
     size_t len = varint_len(vi_stream_id);
-    memcpy((void *) buf, (void *) vi_stream_id, len);
-    buf += len;
+    memcpy((void *) &buf[written], (void *) vi_stream_id, len);
+    written += len;
     free(vi_stream_id);
 
     varint *vi_offset = write_var_int_62(offset);
     len = varint_len(vi_offset);
-    memcpy((void *) buf, (void *) vi_offset, len);
-    buf += len;
+    memcpy((void *) &buf[written], (void *) vi_offset, len);
+    written += len;
     free(vi_offset);
 
     varint *vi_length = write_var_int_62(length);
     len = varint_len(vi_length);
-    memcpy((void *) buf, (void *) vi_length, len);
-    buf += len;
+    memcpy((void *) &buf[written], (void *) vi_length, len);
+    written += len;
     free(vi_length);
 
-    snprintf(buf, len, "%s", data);
+    return snprintf(&buf[written], length, "%s", data + offset);
 }
 
 /**
@@ -452,7 +464,7 @@ char *write_frame_into_buf(frame *frame, size_t *len) {
         case TYPE_HANDSHAKE_DONE: {
             buffer = malloc(sizeof(frame->type));
             if (buffer == NULL) {
-                print_quic_error("Error while allocating buffer memory");
+                log_quic_error("Error while allocating buffer memory");
                 break;
             }
             memcpy((void *) buffer, (void *) write_var_int_62(frame->type), 1);
@@ -461,9 +473,10 @@ char *write_frame_into_buf(frame *frame, size_t *len) {
         }
         case TYPE_ACK: {
             ack_frame *ack = (ack_frame *) frame;
+            varint *frame_type_vi = write_var_int_62(ack->type);
             varint *largest_acked = write_var_int_62(ack->largest_acked);
             size_t largest_size = varint_len(largest_acked);
-            varint *ack_delay = write_var_int_62(ack->ack_delay);
+            varint *ack_delay = write_var_int_62(ack->ack_delay >> ACK_DELAY_EXP);
             size_t delay_size = varint_len(ack_delay);
             varint *range_count = write_var_int_62(ack->ack_range_count);
             size_t range_size = varint_len(range_count);
@@ -471,15 +484,15 @@ char *write_frame_into_buf(frame *frame, size_t *len) {
             size_t first_range_size = varint_len(first_range);
             size_t size = sizeof(ack->type) + largest_size + delay_size + range_size +
                           first_range_size + sizeof(ack_range) * ack->ack_range_count;
-            buffer = malloc(size);
+            buffer = calloc(1, size);
             *len = size;
             char *buf = buffer;
             if (buf == NULL) {
-                print_quic_error("Error while allocating buffer memory");
+                log_quic_error("Error while allocating buffer memory");
                 return NULL;
             }
-            memcpy((void *) buf, (void *) &(ack->type), sizeof(uint8_t));
-            buf += sizeof(uint8_t);
+            memcpy((void *) buf, (void *) frame_type_vi, varint_len(frame_type_vi));
+            buf += varint_len(frame_type_vi);
             memcpy((void *) buf, (void *) largest_acked, largest_size);
             buf += largest_size;
             memcpy((void *) buf, (void *) ack_delay, delay_size);
@@ -527,9 +540,21 @@ char *write_frame_into_buf(frame *frame, size_t *len) {
         case TYPE_CONN_CLOSE_APP: {
         }
         default: {
-            print_quic_error("Unrecognized frame type.");
+            log_quic_error("Unrecognized frame type.");
             return NULL;
         }
     }
     return NULL;
+}
+
+/**
+ * @brief Evaluates an ACK frame length
+ *
+ * @param ack   the ACK frame
+ * @return      the frame size in bytes
+ */
+ssize_t ack_frame_len(ack_frame *ack) {
+    size_t len = 0;
+    len += bytes_needed(ack->type);
+    len += bytes_needed(ack->ack_delay);
 }

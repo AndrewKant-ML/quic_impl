@@ -6,10 +6,9 @@
  */
 
 #include "quic_conn.h"
-#include "quic_errors.h"
 
 // Array of all opened connections
-quic_connection *connections[MAX_CONNECTIONS];
+static quic_connection **connections = NULL;
 size_t active_connections = 0;
 size_t last_checked = 0;
 
@@ -40,9 +39,23 @@ int init() {
  * @param conn  the connection
  * @return      one of local connection IDs
  */
-conn_id get_local_conn_id(quic_connection *conn) {
-    size_t index = (random() * 100) % conn->local_conn_ids_num;
-    return conn->local_conn_ids[index];
+conn_id get_random_local_conn_id(quic_connection *conn) {
+    size_t n = (random() * 100) % conn->local_conn_ids_num;
+    return conn->local_conn_ids[n];
+}
+
+/**
+ * @brief Takes one of the peer's connection IDs
+ *
+ * Randomly chooses one between the peer's connection
+ * IDs and returns it.
+ *
+ * @param conn  the QUICLite connection
+ * @return      0 on success, -1 on errors
+ */
+conn_id get_random_peer_conn_id(quic_connection *conn) {
+    size_t n = ((size_t) random() * 100) % conn->peer_conn_ids_num;
+    return conn->peer_conn_ids[n];
 }
 
 /**
@@ -55,11 +68,14 @@ conn_id get_local_conn_id(quic_connection *conn) {
  * @param conn  the connection to be create
  * @return      0 on success, -1 on errors
  */
-int new_connection(quic_connection *conn, enum peer_type type) {
+int new_connection(quic_connection *conn, enum PeerType type) {
+    if (connections == NULL)
+        connections = (quic_connection **) calloc(MAX_CONNECTIONS, sizeof(quic_connection *));
+
     conn->peer_type = type;
     conn->local_conn_ids_num = 0;
     if (issue_new_conn_id(conn) != 0) {
-        print_quic_error("An error occurred while issuing a new connection ID.");
+        log_quic_error("An error occurred while issuing a new connection ID.");
         return -1;
     }
     conn->cwnd = kINITIAL_WND;   // Initial congestion window size
@@ -77,32 +93,38 @@ int new_connection(quic_connection *conn, enum peer_type type) {
     conn->min_rtt = 0;
     conn->first_rtt_sample = 0;
 
-    conn->swnd.largest_acked[INITIAL] = UINT32_MAX;
-    conn->swnd.largest_acked[HANDSHAKE] = UINT32_MAX;
-    conn->swnd.largest_acked[APPLICATION_DATA] = UINT32_MAX;
+    conn->swnd = (sender_window *) calloc(1, sizeof(sender_window));
+    conn->rwnd = (receiver_window *) calloc(1, sizeof(receiver_window));
 
-    conn->swnd.time_of_last_ack_eliciting_packet[INITIAL] = 0;
-    conn->swnd.time_of_last_ack_eliciting_packet[HANDSHAKE] = 0;
-    conn->swnd.time_of_last_ack_eliciting_packet[APPLICATION_DATA] = 0;
+    conn->swnd->buffer = (outgoing_packet **) calloc(BUF_CAPACITY, sizeof(outgoing_packet *));
+    conn->rwnd->buffer = (incoming_packet **) calloc(BUF_CAPACITY, sizeof(incoming_packet *));
 
-    conn->swnd.loss_time[INITIAL] = 0;
-    conn->swnd.loss_time[HANDSHAKE] = 0;
-    conn->swnd.loss_time[APPLICATION_DATA] = 0;
+    conn->swnd->largest_acked[INITIAL] = UINT32_MAX;
+    conn->swnd->largest_acked[HANDSHAKE] = UINT32_MAX;
+    conn->swnd->largest_acked[APPLICATION_DATA] = UINT32_MAX;
 
-    conn->swnd.write_index = 0;
-    conn->swnd.read_index = 0;
-    conn->rwnd.write_index = 0;
-    conn->rwnd.read_index = 0;
+    conn->swnd->time_of_last_ack_eliciting_packet[INITIAL] = 0;
+    conn->swnd->time_of_last_ack_eliciting_packet[HANDSHAKE] = 0;
+    conn->swnd->time_of_last_ack_eliciting_packet[APPLICATION_DATA] = 0;
+
+    conn->swnd->loss_time[INITIAL] = 0;
+    conn->swnd->loss_time[HANDSHAKE] = 0;
+    conn->swnd->loss_time[APPLICATION_DATA] = 0;
+
+    conn->swnd->write_index = 0;
+    conn->swnd->read_index = 0;
+    conn->rwnd->write_index = 0;
+    conn->rwnd->read_index = 0;
 
     for (int i = 0; i < BUF_CAPACITY; i++) {
-        conn->swnd.buffer[i] = (packet *) calloc(1, sizeof(packet));
-        conn->rwnd.buffer[i] = (transfert_msg *) calloc(1, sizeof(transfert_msg));
+        conn->swnd->buffer[i] = (outgoing_packet *) calloc(1, sizeof(outgoing_packet));
+        conn->rwnd->buffer[i] = (incoming_packet *) calloc(1, sizeof(incoming_packet));
     }
 
-    conn->peer_conn_ids = (conn_id *) malloc(sizeof(conn_id));
+    conn->peer_conn_ids = (conn_id *) calloc(1, sizeof(conn_id));
     conn->local_conn_ids_num = 0;
     conn->peer_conn_ids_num = 0;
-    conn->peer_conn_ids_limit = 0;
+    conn->peer_conn_ids_limit = 1;
     conn->handshake_done = false;
     conn->max_datagram_size = MAX_DATAGRAM_SIZE;
 
@@ -112,11 +134,12 @@ int new_connection(quic_connection *conn, enum peer_type type) {
         i++;
     if (i >= MAX_CONNECTIONS) {
         // Reached connections limit
-        print_quic_error("Reached maximum active connection number.");
+        log_quic_error("Reached maximum active connection number.");
         free(conn);
         return -1;
     }
     connections[i] = conn;
+    active_connections++;
     return 0;
 }
 
@@ -139,7 +162,7 @@ int issue_new_conn_id(quic_connection *conn) {
 
     // If the number of IDs has reached its limit for the connection, an error is thrown
     if (conn->local_conn_ids_num > 1 && conn->local_conn_ids_num + 1 > conn->peer_conn_ids_limit) {
-        print_quic_error("Connection has reached its connection IDs number limit");
+        log_quic_error("Connection has reached its connection IDs number limit");
         return -1;
     }
 
@@ -154,8 +177,8 @@ int issue_new_conn_id(quic_connection *conn) {
 
     // If connection IDs generation has achieved its limit, an error is thrown.
     if (generated == UINT64_MAX) {
-        print_quic_error("Server has been running for too long: too many connection IDs have been issued."
-                         "Please restart.");
+        log_quic_error("Server has been running for too long: too many connection IDs have been issued."
+                       "Please restart.");
         return -1;
     }
 
@@ -214,28 +237,58 @@ int is_internally_used(conn_id id, quic_connection *conn) {
 }
 
 /**
- * @brief Finds a connection with data to be sent
+ * @brief Finds a connection with packets to be processed
+ *
+ * Iterate with an infinite loop, up to a given timeout,
+ * if any of the active connections has packets to process
+ * on its window.
+ *
+ * This function is inspired by Unix select() function.
+ *
+ * @param wait_time how much time (in seconds)
+ * @return          the connection which has data to send, or NULL if the timer expires
+ */
+quic_connection *select_connection_r(time_ms wait_time) {
+    int i = 0;
+    time_ms curr_time, expire_time;
+    if ((curr_time = get_time_millis()) > 0) {
+        expire_time = curr_time + wait_time;
+        while (curr_time < expire_time) {
+            if (connections[i] != NULL)
+                if (count_to_be_processed(connections[i]->rwnd) > 0)
+                    // There are bytes to be sent on the connection window
+                    return connections[i];
+            i = (i + 1) % MAX_CONNECTIONS;
+            curr_time = get_time_millis();
+        }
+    }
+    return NULL;
+}
+
+/**
+ * @brief Finds a connection with packets to be sent
  *
  * Iterate with an infinite loop, up to a given timeout,
  * if any of the active connections has data to sent on
  * its window.
  *
- * This function is inspired to Unix select() function.
+ * This function is inspired by Unix select() function.
  *
  * @param wait_time how much time (in seconds)
  * @return          the connection which has data to send, or NULL if the timer expires
  */
-quic_connection *select_connection(time_ms wait_time, time_ms *timeout) {
+quic_connection *select_connection_s(time_ms wait_time) {
     int i = 0;
-    time_ms curr_time;
+    time_ms curr_time, expire_time;
     if ((curr_time = get_time_millis()) > 0) {
-        *timeout = curr_time + wait_time;
-        while ((curr_time = get_time_millis()) < *timeout) {
+        expire_time = curr_time + wait_time;
+        while (curr_time < expire_time) {
             if (connections[i] != NULL)
-                if (count_to_be_sent(&(connections[i]->swnd)) > 0)
+                if (count_to_be_sent(connections[i]->swnd) > 0)
                     // There are bytes to be sent on the connection window
                     return connections[i];
             i = (i + 1) % MAX_CONNECTIONS;
+            curr_time = get_time_millis();
         }
     }
     return NULL;
@@ -265,62 +318,110 @@ quic_connection *multiplex(conn_id id) {
 /**
  * @brief Enqueues a packet in the connection sender window
  *
- * @param pkt   the packet to be enqueued
+ * @param pkt   the packet to be ready_to_send
  * @param conn  the connection
  * @return      0 on success, -1 on errors
  */
-int enqueue(packet *pkt, quic_connection *conn) {
-    return put_in_sender_window(&(conn->swnd), pkt);
+int enqueue(outgoing_packet *pkt, quic_connection *conn) {
+    int ret = put_in_sender_window(conn->swnd, pkt);
+    log_msg("Packet enqueued");
+    return ret;
 }
 
 /**
  * @brief Sends as many packets as possible, according
- * to the congestion control limits
+ * to the congestion control limits and UDP payload
+ * max size, inside UDP datagrams
  *
  * @param sd    the UDP socket descriptor
- * @param conn  the connection
+ * @param conn  the QUICLite connection
  * @return      0 on success, -1 on errors
  */
 int send_packets(int sd, quic_connection *conn) {
     long send_time;
-    packet *pkt;
-    int count = 0;
-    while (conn->bytes_in_flight < conn->cwnd && count_to_be_sent(&(conn->swnd)) > 0) {
-        pkt = get_oldest_not_sent(&(conn->swnd));
-        if (pkt->length > conn->max_datagram_size) {
-            print_quic_error("Packet is too big to be sent inside a UDP datagram.");
-            return -1;
-        }
-        if (sendto(sd, (char *) pkt->pkt, pkt->length, 0, (struct sockaddr *) &conn->addr, sizeof(conn->addr)) > 0) {
-            if ((send_time = get_time_millis()) != -1) {
-                pkt->send_time = send_time;
-                pkt->in_flight = true;
-                count++;
-            } else
+    outgoing_packet *pkt, *packets[1024];
+    size_t count, off, i;
+    char buf[conn->max_datagram_size];
+    // Checks congestion control limits and number of packets to send
+    while (conn->bytes_in_flight < conn->cwnd && count_to_be_sent(conn->swnd) > 0) {
+        count = 0;
+        off = 0;
+        i = 0;
+        pkt = get_oldest_not_ready(conn->swnd);
+        while (pkt != NULL && pkt->length + off < conn->max_datagram_size &&
+               pkt->length + off + conn->bytes_in_flight < conn->cwnd) {
+
+            pkt->ready_to_send = true;
+            // If this is the last packet to be sent inside the datagram,
+            // checks its size (must be at least 1200 bytes, otherwise
+            // appends padding frames)
+            if (get_oldest_not_ready(conn->swnd) == NULL) {
+                // There are no more packets to send
+                ssize_t diff = MIN_DATAGRAM_SIZE - (off + pkt->length);
+                if (diff > 0) {
+                    // Pad packet payload
+                    if (pad_packet(pkt, diff) != 0) {
+                        log_quic_error("Error while padding packet");
+                        return -1;
+                    }
+                }
+            }
+
+            // Checks if packet is too big to be sent
+            // TODO this should never happen
+            if (pkt->length > conn->max_datagram_size) {
+                log_quic_error("Packet is too big to be sent inside a UDP datagram.");
                 return -1;
-        } else {
-            print_quic_error("Error while sending packet.");
-            return -1;
+            }
+
+            memcpy(&buf[off], pkt->pkt, pkt->length);
+            pkt->ready_to_send = true;
+            off += pkt->length;
+            packets[i++] = pkt;
+            count++;
+            pkt = get_oldest_not_ready(conn->swnd);
         }
-        if (pkt->in_flight) {
-            if (pkt->ack_eliciting)
-                conn->swnd.time_of_last_ack_eliciting_packet[pkt->space] = send_time;
-            on_packet_sent_cc(conn, pkt->length);
+        ssize_t n = sendto(sd, buf, off, 0, (struct sockaddr *) &conn->addr,
+                           sizeof(conn->addr));
+        conn->last_active = get_time_millis();
+        if (n > 0) {
+            if ((send_time = get_time_millis()) != -1) {
+                // If datagram has been sent, marks all packets as 'in-flight' and updates
+                // bytes-in-flight counter and send time of last ACK-eliciting packet
+                for (i = 0; i < count; i++) {
+                    packets[i]->send_time = send_time;
+                    packets[i]->in_flight = true;
+                    if (packets[i]->in_flight) {
+                        if (packets[i]->ack_eliciting)
+                            conn->swnd->time_of_last_ack_eliciting_packet[packets[i]->space] = send_time;
+                        on_packet_sent_cc(conn, packets[i]->length);
+                    }
+                }
+                log_msg("Packets sent correctly");
+            } else {
+                return -1;
+            }
+        } else {
+            // If datagram has been sent, marks all packets as not ready and updates
+            for (i = 0; i < count; ++i)
+                packets[i]->ready_to_send = false;
+            log_quic_error("Error while sending packets");
+            return -1;
         }
     }
     return 0;
 }
 
 /**
- * @brief Gets the oldest packet not yet sent in the window
+ * @brief Gets the oldest packet not yet ready_to_send in the window
  *
  * @param wnd   the window
  * @return      the oldest packet not sent yet
  */
-packet *get_oldest_not_sent(sender_window *wnd) {
+outgoing_packet *get_oldest_not_ready(sender_window *wnd) {
     size_t i = wnd->read_index;
     while (i != wnd->write_index) {
-        if (wnd->buffer[i]->send_time == 0)
+        if (wnd->buffer[i]->send_time == 0 && !wnd->buffer[i]->ready_to_send)
             return wnd->buffer[i];
         i = (i + 1) % BUF_CAPACITY;
     }
@@ -347,67 +448,80 @@ void on_packet_sent_cc(quic_connection *conn, size_t sent_bytes) {
  * @param type  the type of the endpoint (eg, server or client), because a server cannot accept some parameters
  * @return      0 on success, -1 on error. Also, on errors the connection must be closed with an error of type TRANSPORT_PARAMETER_ERROR
  */
-int read_transport_parameters(initial_packet *pkt, quic_connection *conn, enum peer_type type) {
+int read_transport_parameters(initial_packet *pkt, quic_connection *conn, enum PeerType type) {
     for (int i = 0; i < pkt->transport_parameters_number; i++) {
-        transport_parameter *tp = pkt->transport_parameters[i];
-        uint8_t tp_id = tp->id;
-        size_t tp_len = tp->len;
+        transport_parameter tp = pkt->transport_parameters[i];
+        uint8_t tp_id = tp.id;
         switch (tp_id) {
             case original_destination_connection_id: {
                 if (type == SERVER) // Server should not receive this parameter
                     return -1;
+                break;
             }
             case max_idle_timeout: {
                 // TODO check PTO
-                uint64_t peer_max_idle_to = read_var_int_62(tp->data);
+                uint64_t peer_max_idle_to = tp.value;
                 conn->max_idle_timeout_ms = MIN(peer_max_idle_to, MAX_IDLE_TIMEOUT_MS);
+                break;
             }
             case stateless_reset_token: {
                 if (type == SERVER) // Server should not receive this parameter
                     return -1;
+                break;
             }
             case max_udp_payload_size: {
-                conn->conn_max_udp_payload_size = read_var_int_62(tp->data);
+                conn->conn_max_udp_payload_size = tp.value;
+                break;
             }
             case initial_max_data: {
-                conn->max_conn_data = read_var_int_62(tp->data);
+                conn->max_conn_data = tp.value;
+                break;
             }
             case initial_max_streams_bidi: {
-                conn->max_streams_bidi = read_var_int_62(tp->data);
+                conn->max_streams_bidi = tp.value;
                 conn->bidi_streams = (stream **) malloc(sizeof(stream *) * conn->max_streams_bidi);
+                break;
             }
             case initial_max_streams_uni: {
-                conn->max_streams_uni = read_var_int_62(tp->data);
+                conn->max_streams_uni = tp.value;
                 conn->uni_streams = (stream **) malloc(sizeof(stream *) * conn->max_streams_uni);
+                break;
             }
             case ack_delay_exponent: {
-                uint64_t exp = read_var_int_62(tp->data);
+                uint64_t exp = tp.value;
                 conn->ack_delay_exp = exp > 20 ? 3 : exp;
+                break;
             }
             case max_ack_delay: {
-                uint64_t delay = read_var_int_62(tp->data);
+                uint64_t delay = tp.value;
                 conn->ack_delay_exp = delay > MAX_ACK_DELAY ? 25 : delay;
+                break;
             }
             case disable_active_migration: {
+                break;
             }
             case preferred_address: {
                 if (type == SERVER) // Server should not receive this parameter
                     return -1;
+                break;
             }
             case active_connection_id_limit: {
-                uint64_t limit = read_var_int_62(tp->data);
+                uint64_t limit = tp.value;
                 if (limit < 2)  // Error, must close connection with TRANSPORT_PARAMETER_ERROR
                     return -1;
                 conn->active_conn_id_limit = limit;
+                break;
             }
             case initial_source_connection_id: {
+                break;
             }
             case retry_source_connection_id: {
                 if (type == SERVER) // Server should not receive this parameter
                     return -1;
+                break;
             }
             default: {
-                print_quic_error("Unsupported transport parameter");
+                log_quic_error("Unsupported transport parameter");
             }
         }
     }
@@ -491,7 +605,7 @@ int in_cong_recovery_state(const quic_connection *conn, time_ms send_time) {
  * @return          the earliest loss time on the connection
  */
 time_ms get_loss_time(quic_connection *conn, num_space *space) {
-    sender_window wnd = conn->swnd;
+    sender_window wnd = *conn->swnd;
     time_ms min;
     time_ms init = wnd.loss_time[INITIAL];
     min = init;
@@ -512,7 +626,7 @@ time_ms get_loss_time(quic_connection *conn, num_space *space) {
 time_ms get_pto_time(quic_connection *conn, num_space *space) {
     time_ms duration = (conn->smoothed_rtt + MAX(4 * conn->rtt_var, kGRANULARITY)) * (time_t) pow(2, conn->pto_count);
     // Anti-deadlock PTO starts from the current time
-    if (!in_flight_ack_eliciting(&(conn->swnd)) && conn->handshake_done) {
+    if (!in_flight_ack_eliciting(conn->swnd) && conn->handshake_done) {
         *space = INITIAL;
         return time(NULL) + duration;
     }
@@ -521,7 +635,7 @@ time_ms get_pto_time(quic_connection *conn, num_space *space) {
     num_space spaces[] = {INITIAL, APPLICATION_DATA};
     time_ms t;
     for (int i = 0; i < 2; i++) {
-        if (!in_flight_ack_eliciting_in_space(&(conn->swnd), spaces[i]))
+        if (!in_flight_ack_eliciting_in_space(conn->swnd, spaces[i]))
             continue;
         if (i == 1) {
             // Skip Application Data until handshake confirmed.
@@ -532,7 +646,7 @@ time_ms get_pto_time(quic_connection *conn, num_space *space) {
             // Include conn_max_ack_delay and backoff for Application Data.
             duration += conn->conn_max_ack_delay + (time_t) pow(2, conn->pto_count);
         }
-        t = conn->swnd.time_of_last_ack_eliciting_packet[spaces[i]] + duration;
+        t = conn->swnd->time_of_last_ack_eliciting_packet[spaces[i]] + duration;
         if (t < pto_timeout) {
             pto_timeout = t;
             pto_space = spaces[i];
@@ -557,7 +671,7 @@ void set_loss_detection_timer(quic_connection *conn) {
         return;
     }
 
-    if (!in_flight_ack_eliciting(&(conn->swnd)) && conn->handshake_done) {
+    if (!in_flight_ack_eliciting(conn->swnd) && conn->handshake_done) {
         // There is nothing to detect lost, so no timer is set.
         // However, the client needs to arm the timer if the
         // server might be blocked by the anti-amplification limit.
@@ -577,14 +691,14 @@ void on_loss_detection_timeout(quic_connection *conn) {
     time_ms earlier_lost_time = get_loss_time(conn, &space);
     if (earlier_lost_time != 0) {
         // Time threshold lost detection
-        packet **lost_packets = (packet **) malloc(BUF_CAPACITY * sizeof(packet *));
+        outgoing_packet **lost_packets = (outgoing_packet **) malloc(BUF_CAPACITY * sizeof(outgoing_packet *));
         detect_and_remove_lost_packets(conn, space, lost_packets);
         // todo assert not empty & onpacketslost
         set_loss_detection_timer(conn);
         return;
     }
 
-    if (!in_flight_ack_eliciting(&(conn->swnd)) && !conn->handshake_done) {
+    if (!in_flight_ack_eliciting(conn->swnd) && !conn->handshake_done) {
         // Client sends an anti-deadlock packet: Initial is padded
         // to earn more anti-amplification credit.
         // todo SendOneAckElicitingPaddedInitialPacket()
@@ -605,9 +719,10 @@ void on_loss_detection_timeout(quic_connection *conn) {
  * @param lost_packets  a return-value argument containing the lost packets
  * @return              the number of lost packet, or -1 on errors
  */
-int detect_and_remove_lost_packets(quic_connection *conn, num_space space, packet *lost_packets[BUF_CAPACITY]) {
-    if (conn->swnd.largest_acked[space] != UINT32_MAX) {
-        conn->swnd.loss_time[space] = 0;
+int
+detect_and_remove_lost_packets(quic_connection *conn, num_space space, outgoing_packet *lost_packets[BUF_CAPACITY]) {
+    if (conn->swnd->largest_acked[space] != UINT32_MAX) {
+        conn->swnd->loss_time[space] = 0;
         int j = 0;
         time_ms loss_delay = kTIME_THRESH * MAX(conn->latest_rtt, conn->smoothed_rtt);
 
@@ -620,28 +735,28 @@ int detect_and_remove_lost_packets(quic_connection *conn, num_space space, packe
             return -1;
         time_ms lost_send_time = curr_time - loss_delay;
 
-        size_t i = conn->swnd.read_index;
-        packet *pkt;
-        while (i != conn->swnd.write_index) {
-            pkt = conn->swnd.buffer[i];
+        size_t i = conn->swnd->read_index;
+        outgoing_packet *pkt;
+        while (i != conn->swnd->write_index) {
+            pkt = conn->swnd->buffer[i];
             if (!pkt->acked && pkt->space == space) {
-                if (pkt->pkt_num > conn->swnd.largest_acked[space])
+                if (pkt->pkt_num > conn->swnd->largest_acked[space])
                     continue;
                 // Mark packet as lost, or set time when it should be marked.
                 // Note: The use of kPacketThreshold here assumes that there
                 // were no sender-induced gaps in the packet number space.
                 if (pkt->send_time <= lost_send_time ||
-                    conn->swnd.largest_acked[space] >= pkt->pkt_num + kPACKET_THRESH) {
+                    conn->swnd->largest_acked[space] >= pkt->pkt_num + kPACKET_THRESH) {
                     pkt->lost = true;
                     lost_packets[j] = pkt;
                     j++;
                     if (enqueue(pkt, conn) != 0)
-                        print_quic_error("Error while re-enqueuing lost packet.");
+                        log_quic_error("Error while re-enqueuing lost packet.");
                 } else {
-                    if (conn->swnd.loss_time[space] == 0)
-                        conn->swnd.loss_time[space] = pkt->send_time + loss_delay;
+                    if (conn->swnd->loss_time[space] == 0)
+                        conn->swnd->loss_time[space] = pkt->send_time + loss_delay;
                     else
-                        conn->swnd.loss_time[space] = MIN(conn->swnd.loss_time[space], pkt->send_time + loss_delay);
+                        conn->swnd->loss_time[space] = MIN(conn->swnd->loss_time[space], pkt->send_time + loss_delay);
                 }
             }
             i = (i + 1) % BUF_CAPACITY;
@@ -659,18 +774,18 @@ int detect_and_remove_lost_packets(quic_connection *conn, num_space space, packe
  * @param largest_acked the newly largest acked packet (result-value parameter)
  * @return              0 if the newly acked packet did not include an ack-eliciting packet, 1 otherwise
  */
-int detect_and_remove_acked_packets(quic_connection *conn, num_space space, packet *largest_acked) {
-    size_t i = conn->swnd.read_index;
+int detect_and_remove_acked_packets(quic_connection *conn, num_space space) {
+    size_t i = conn->swnd->read_index;
     int ack_eliciting = 0;
-    packet *pkt;
-    while (i != conn->swnd.write_index) {
-        pkt = conn->swnd.buffer[i];
+    outgoing_packet *pkt;
+    while (i != conn->swnd->write_index) {
+        pkt = conn->swnd->buffer[i];
         if (pkt->space == space)
-            if (pkt->ack_eliciting)
+            if (pkt->ack_eliciting) {
                 ack_eliciting = 1;
+            }
         i = (i + 1) % BUF_CAPACITY;
     }
-    *largest_acked = *get_largest_acked_in_space(&(conn->swnd), space);
     return ack_eliciting;
 }
 
@@ -682,28 +797,28 @@ int detect_and_remove_acked_packets(quic_connection *conn, num_space space, pack
  * @param space the number space of the packet containing the ACK frame
  * @return
  */
-int on_ack_received(quic_connection *conn, ack_frame *ack, num_space space, time_ms ack_time) {
-    if (conn->swnd.largest_acked[space] == UINT64_MAX)
-        conn->swnd.largest_acked[space] = ack->largest_acked;
+int on_ack_received(quic_connection *conn, ack_frame *ack, num_space space) {
+    if (conn->swnd->largest_acked[space] == UINT64_MAX)
+        conn->swnd->largest_acked[space] = ack->largest_acked;
     else
-        conn->swnd.largest_acked[space] = MAX(conn->swnd.largest_acked[space], ack->largest_acked);
+        conn->swnd->largest_acked[space] = MAX(conn->swnd->largest_acked[space], ack->largest_acked);
 
-    packet largest_acked;
-    int ack_eliciting = detect_and_remove_acked_packets(conn, space, &largest_acked);
-    if (ack_eliciting == 1 && largest_acked.pkt_num == ack->largest_acked) {
+    int ack_eliciting = detect_and_remove_acked_packets(conn, space);
+    if (ack_eliciting == 1 && conn->swnd->largest_acked[space] == ack->largest_acked) {
         struct timespec now;
         if (get_time(&now) == -1)
             return -1;
         update_rtt(conn, ack->ack_delay);
     }
 
-    packet *lost_packets[BUF_CAPACITY];
+    outgoing_packet *lost_packets[BUF_CAPACITY];
     detect_and_remove_lost_packets(conn, space, lost_packets);
     // TODO on packet lost on every lost packet
 
     if (conn->handshake_done)
         conn->pto_count = 0;
     set_loss_detection_timer(conn);
+    return 0;
 }
 
 /**
@@ -713,9 +828,9 @@ int on_ack_received(quic_connection *conn, ack_frame *ack, num_space space, time
  * @param lost_packets
  * @return
  */
-int on_packet_loss(quic_connection *conn, size_t num, packet *lost_packets[BUF_CAPACITY]) {
+int on_packet_loss(quic_connection *conn, size_t num, outgoing_packet *lost_packets[BUF_CAPACITY]) {
     time_ms sent_time_of_last_loss = 0;
-    packet *pkt;
+    outgoing_packet *pkt;
     // Remove lost packets from bytes_in_flight
     for (size_t i = 0; i < num; i++) {
         pkt = lost_packets[i];
@@ -767,13 +882,14 @@ int close_connection_with_error_code(int fd, conn_id dest_conn_id, conn_id src_c
     if (!conn->handshake_done) {
         // Handshake phase, send frame in Initial packet
         initial_packet pkt;
-        build_initial_packet(dest_conn_id, src_conn_id, strlen(stream_buf), 0, stream_buf, &pkt);
+        build_initial_packet(dest_conn_id, src_conn_id, strlen(stream_buf), 0, stream_buf,
+                             get_largest_in_space(conn->swnd, INITIAL)->pkt_num + 1, &pkt);
         set_pkt_num((void *) &pkt, 1);
         size_t initial_len = initial_pkt_len(&pkt);
         char *buf = (char *) malloc(initial_len);
         write_packet_to_buf(buf, initial_len, (void *) &pkt);
         if (sendto(fd, buf, initial_len, 0, (struct sockaddr *) &conn->addr, len) != 0) {
-            print_quic_error("Error while closing connection during handshake phase.");
+            log_quic_error("Error while closing connection during handshake phase.");
             return -1;
         }
         // Deallocates used memory
@@ -783,13 +899,13 @@ int close_connection_with_error_code(int fd, conn_id dest_conn_id, conn_id src_c
         // Handshake done, send frame in 1-RTT packet
         one_rtt_packet pkt;
         build_one_rtt_packet(dest_conn_id, strlen(stream_buf), (void *) stream_buf, &pkt);
-        pkt_num largest = get_largest_in_space(&(conn->swnd), APPLICATION_DATA)->pkt_num + 1;
+        pkt_num largest = get_largest_in_space(conn->swnd, APPLICATION_DATA)->pkt_num + 1;
         set_pkt_num(&pkt, largest);
         size_t one_rtt_len = one_rtt_pkt_len(&pkt);
         char *buf = (char *) malloc(one_rtt_len);
         write_packet_to_buf(buf, one_rtt_len, &pkt);
         if (sendto(fd, buf, one_rtt_len, 0, (struct sockaddr *) &conn->addr, len) != 0) {
-            print_quic_error("Error while closing connection");
+            log_quic_error("Error while closing connection");
             return -1;
         }
         // Deallocates used memory
@@ -827,20 +943,18 @@ int save_stream_to_conn(quic_connection *conn, stream *str) {
     switch (str->mode) {
         case UNIDIRECTIONAL: {
             if (conn->uni_streams_num == conn->max_streams_uni) {
-                print_quic_error("Cannot open another unidirectional stream: limit reached.");
+                log_quic_error("Cannot open another unidirectional stream: limit reached.");
                 return -1;
             }
-            conn->uni_streams[conn->uni_streams_num] = str;
-            conn->uni_streams_num++;
+            conn->uni_streams[conn->uni_streams_num++] = str;
             break;
         }
         case BIDIRECTIONAL: {
             if (conn->bidi_streams_num == conn->max_streams_bidi) {
-                print_quic_error("Cannot open another unidirectional stream: limit reached.");
+                log_quic_error("Cannot open another unidirectional stream: limit reached.");
                 return -1;
             }
-            conn->bidi_streams[conn->bidi_streams_num] = str;
-            conn->bidi_streams_num++;
+            conn->bidi_streams[conn->bidi_streams_num++] = str;
             break;
         }
     }

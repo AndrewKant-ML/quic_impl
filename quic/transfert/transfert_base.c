@@ -5,6 +5,9 @@
 #include <malloc.h>
 #include "transfert_base.h"
 
+FILE **tmp_files = NULL;
+size_t tmp_files_num = 0;
+
 /**
  * @brief Checks a transfert_msg semantics
  * @param msg   the transfert_msg to be checked
@@ -100,7 +103,6 @@ int parse_and_exec_data_msg(char *raw) {
         if (fwrite(data_msg.data, data_msg.size, 1, fp) != 1)
             return -1;*/
 
-        return 0;
         return 0;
     }
     return -1;

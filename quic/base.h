@@ -14,6 +14,7 @@
 #include <netinet/in.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <string.h>
 
 #include "varint.h"
 
@@ -43,7 +44,9 @@ typedef struct transfert_msg_t transfert_msg;
 
 typedef enum PacketNumberSpace num_space;
 
-typedef struct packet_t packet;
+typedef struct outgoing_packet_t outgoing_packet;
+
+typedef struct incoming_packet_t incoming_packet;
 
 typedef struct long_header_pkt_t long_header_pkt;
 
@@ -61,13 +64,22 @@ typedef struct ack_range_t ack_range;
 
 typedef struct frame_t frame;
 
+typedef struct conn_set_t conn_set;
+
+enum PacketType {
+    TYPE_INITIAL,
+    TYPE_RETRY,
+    TYPE_ZERO_RTT,
+    TYPE_ONE_RTT
+};
+
 enum PacketNumberSpace {
     INITIAL = 0,
     HANDSHAKE = 1,
     APPLICATION_DATA = 2
 };
 
-enum peer_type {
+enum PeerType {
     SERVER,
     CLIENT
 };
@@ -75,5 +87,9 @@ enum peer_type {
 int get_time(struct timespec *);
 
 long get_time_millis();
+
+void log_msg(char *);
+
+void log_quic_error(char *);
 
 #endif //QUIC_BASE

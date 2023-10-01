@@ -82,12 +82,14 @@ void new_close_connection_frame(uint64_t, char *, char *);
 
 void new_reset_stream_frame(stream_id, uint64_t, char *);
 
-void new_stream_frame(stream_id, size_t, size_t, char *, char *);
+size_t new_stream_frame(stream_id, size_t, size_t, char *, char *);
 
 ssize_t process_frame(const char *, pkt_num, num_space, quic_connection *);
 
-int parse_ack_frame(const char *, ack_frame *, const quic_connection *, time_ms);
+ssize_t parse_ack_frame(const char *, ack_frame *, const quic_connection *, time_ms);
 
 char *write_frame_into_buf(frame *, size_t *);
+
+ssize_t ack_frame_len(ack_frame *);
 
 #endif //FRAMES

@@ -5,9 +5,13 @@
 #include "errors.h"
 
 void print_error(char *msg) {
-    fprintf(stderr, "Error: %s\n", msg);
+    time_t t;
+    time(&t);
+    fprintf(stderr, "%s | Transfert error: %s.\n", strtok(ctime(&t), "\n"), msg);
 }
 
-void print_error_verbose(char *msg) {
-    fprintf(stderr, "Error: %s\nErrno: %d (%s)", msg, errno, strerror(errno));
+void print_log(char *msg) {
+    time_t t;
+    time(&t);
+    printf("%s | Transfert: %s.\n", strtok(ctime(&t), "\n"), msg);
 }

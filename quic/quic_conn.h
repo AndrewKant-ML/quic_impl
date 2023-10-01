@@ -5,6 +5,7 @@
 #ifndef QUIC_CONNECTION
 #define QUIC_CONNECTION
 
+#include "quic_errors.h"
 #include "base.h"
 #include "packets.h"
 #include "frames.h"
@@ -19,9 +20,6 @@
 
 // Maximum number of concurrent active connections
 #define MAX_CONNECTIONS 100
-
-// Size of the receiver buffer (>= cwnd)
-#define RECEIVER_BUFFER_SIZE 1024
 
 // Maximum time for a connection to be idle
 #define MAX_IDLE_TIMEOUT_MS 120000
@@ -83,18 +81,14 @@
 // Maximum buffer packets capacity
 #define BUF_CAPACITY 1024
 
+/* === SENDER WINDOW === */
+
 struct sender_window_t {
     // 3 packets arrays, one for packet number space
-    packet *buffer[BUF_CAPACITY];
+    outgoing_packet **buffer;      // TODO CHECK ABSOLUTELY
     time_ms time_of_last_ack_eliciting_packet[3];
     time_ms loss_time[3];
     pkt_num largest_acked[3];
-    size_t write_index;
-    size_t read_index;
-};
-
-struct receiver_window_t {
-    transfert_msg *buffer[BUF_CAPACITY];
     size_t write_index;
     size_t read_index;
 };
@@ -103,19 +97,19 @@ int ack_pkt_range(quic_connection *, pkt_num, pkt_num, num_space);
 
 int get_first_lost(sender_window *, time_t, num_space, const pkt_num *);
 
-packet *get_oldest_not_sent(sender_window *);
+outgoing_packet *get_oldest_not_ready(sender_window *);
 
-int is_lost(sender_window *, packet *, size_t, time_t);
+int is_lost(sender_window *, outgoing_packet *, size_t, time_t);
 
 size_t count_to_be_sent(sender_window *);
 
-packet *get_pkt_num_in_space(const sender_window *, pkt_num, num_space);
+outgoing_packet *get_pkt_num_in_space(const sender_window *, pkt_num, num_space);
 
-packet *get_largest_in_space(const sender_window *, num_space);
+outgoing_packet *get_largest_in_space(const sender_window *, num_space);
 
-packet *get_largest_acked_in_space(const sender_window *, num_space);
+outgoing_packet *get_largest_acked_in_space(const sender_window *, num_space);
 
-int put_in_sender_window(sender_window *, packet *);
+int put_in_sender_window(sender_window *, outgoing_packet *);
 
 time_ms send_time_in_space(const sender_window *, pkt_num, num_space);
 
@@ -125,13 +119,21 @@ bool in_flight_ack_eliciting(sender_window *);
 
 bool in_flight_ack_eliciting_in_space(sender_window *, num_space);
 
-void rearrange_wnd(sender_window *wnd);
+/* === RECEIVER WINDOW === */
 
-int put_in_receiver_window(receiver_window *, transfert_msg *, size_t);
+struct receiver_window_t {
+    incoming_packet **buffer;
+    size_t write_index;
+    size_t read_index;
+};
 
-transfert_msg *is_message_in_wnd(receiver_window *, transfert_msg *);
+int put_in_receiver_window(receiver_window *, incoming_packet *);
 
-int get_last_from_receiver_window(receiver_window *wnd, transfert_msg *res);
+size_t count_to_be_processed(receiver_window *);
+
+transfert_msg *is_message_in_wnd(receiver_window *, outgoing_packet *);
+
+int get_last_from_receiver_window(receiver_window *, incoming_packet *);
 
 typedef struct loss_detection_timer_t {
     time_ms start;   // Timer start time
@@ -139,7 +141,7 @@ typedef struct loss_detection_timer_t {
 } loss_detection_timer;
 
 struct quic_connection_t {
-    enum peer_type peer_type;                   // The peer holding this connection state
+    enum PeerType peer_type;                   // The peer holding this connection state
 
     conn_id local_conn_ids[MAX_CONNECTION_IDS]; // Set of connection IDs used locally
     size_t local_conn_ids_num;                  // Number of connection IDs used locally
@@ -150,8 +152,8 @@ struct quic_connection_t {
     bool is_in_anti_amplification_limit;        // 0 = handshake not completed, 1 = handshake completed
     size_t incoming_bytes;                      // Incoming bytes in UDP datagram payload (used for anti-amplification)
 
-    receiver_window rwnd;                       // Receiver window
-    sender_window swnd;                         // Sender window
+    receiver_window *rwnd;                      // Receiver window
+    sender_window *swnd;                        // Sender window
 
     struct sockaddr_in addr;                    // Peer's IP address and port number
 
@@ -200,11 +202,13 @@ struct quic_connection_t {
 
 int init();
 
-int new_connection(quic_connection *, enum peer_type);
+int new_connection(quic_connection *, enum PeerType);
 
 int issue_new_conn_id(quic_connection *);
 
-conn_id get_local_conn_id(quic_connection *);
+conn_id get_random_local_conn_id(quic_connection *);
+
+conn_id get_random_peer_conn_id(quic_connection *);
 
 int is_retired(conn_id);
 
@@ -214,15 +218,17 @@ int is_internally_used(conn_id, quic_connection *);
 
 quic_connection *multiplex(conn_id);
 
-quic_connection *select_connection(time_ms, time_ms *);
+quic_connection *select_connection_r(time_ms);
 
-int enqueue(packet *, quic_connection *);
+quic_connection *select_connection_s(time_ms);
+
+int enqueue(outgoing_packet *, quic_connection *);
 
 int send_packets(int, quic_connection *);
 
 void on_packet_sent_cc(quic_connection *, size_t);
 
-int read_transport_parameters(initial_packet *, quic_connection *, enum peer_type);
+int read_transport_parameters(initial_packet *, quic_connection *, enum PeerType);
 
 void update_rtt(quic_connection *, time_ms);
 
@@ -238,9 +244,9 @@ void set_loss_detection_timer(quic_connection *);
 
 void on_loss_detection_timeout(quic_connection *);
 
-int detect_and_remove_lost_packets(quic_connection *, num_space, packet *[BUF_CAPACITY]);
+int detect_and_remove_lost_packets(quic_connection *, num_space, outgoing_packet *[BUF_CAPACITY]);
 
-int detect_and_remove_acked_packets(quic_connection *, num_space, packet *);
+int detect_and_remove_acked_packets(quic_connection *, num_space);
 
 int close_connection_with_error_code(int, conn_id, conn_id, quic_connection *, uint64_t, char *);
 
@@ -248,9 +254,9 @@ void free_conn(quic_connection *);
 
 int close_all_connections();
 
-int on_ack_received(quic_connection *, ack_frame *, num_space, time_ms);
+int on_ack_received(quic_connection *, ack_frame *, num_space);
 
-int on_packet_loss(quic_connection *, size_t, packet *[BUF_CAPACITY]);
+int on_packet_loss(quic_connection *, size_t, outgoing_packet *[BUF_CAPACITY]);
 
 // Streams functions
 int save_stream_to_conn(quic_connection *, stream *);

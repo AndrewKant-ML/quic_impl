@@ -10,8 +10,7 @@
 // Definition of a single transport parameter
 typedef struct transport_parameter_t {
     uint64_t id;
-    uint64_t len;
-    void *data;
+    uint64_t value;
 } transport_parameter;
 
 

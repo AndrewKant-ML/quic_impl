@@ -33,12 +33,12 @@ enum stream_mode {
 struct stream_t {
     stream_id id;
     enum stream_mode mode;
-    enum peer_type peer;
+    enum PeerType peer;
     size_t size;
 };
 
-void open_stream(enum peer_type, enum stream_mode, stream *);
+void open_stream(enum PeerType, enum stream_mode, stream *);
 
-uint64_t new_stream_id(enum peer_type, enum stream_mode);
+uint64_t new_stream_id(enum PeerType, enum stream_mode);
 
 #endif //STREAMS

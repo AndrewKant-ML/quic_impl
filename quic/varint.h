@@ -22,4 +22,6 @@ size_t varint_len(const varint *);
 
 size_t bytes_needed(uint64_t);
 
+void print_varint(varint *);
+
 #endif

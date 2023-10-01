@@ -19,7 +19,7 @@
 #define LONG_HEADER_FORM 0xC0
 #define SHORT_HEADER_FORM 0x40
 
-#define PACKET_TYPE_MASK 0xC0
+#define PACKET_HEADER_MASK 0xC0
 #define SPIN_BIT_MASK 0x20;
 #define SHORT_RESERVED_BITS_MASK 0x18
 #define KEY_PHASE_MASK 0x04
@@ -28,21 +28,28 @@
 // For long packets format only
 #define PACKET_TYPE_INITIAL 0x00
 #define PACKET_TYPE_0_RTT 0x10
-#define PACKET_TYPE_HANDSHAKE 0x20
 #define PACKET_TYPE_RETRY 0x30
 #define TYPE_SPECIFIC_BITS_MASK 0x30
 #define LONG_RESERVED_BITS_MASK 0x0C
 
-// General packet struct, used for receiver window
-struct packet_t {
+// General outgoing packet struct, used inside sending window
+struct outgoing_packet_t {
     pkt_num pkt_num;            // Packet number
     num_space space;            // Packet number space
     size_t length;              // Packet length in bytes (header + payload)
     time_ms send_time;          // Time at which the packet has been sent (in ms)
+    bool ready_to_send;         // States if the packet has been put inside a datagram or not
     bool acked;                 // States if the packet has been acknowledged or not
     bool ack_eliciting;         // 0 = packet is not ack-eliciting, 1 = packet is ack_pkt_range-eliciting
     bool in_flight;             // 0 = packet is not in flight, 1 = packet is in flight
     bool lost;                  // 0 = packet is not lost, 1 = packet is lost
+    void *pkt;                  // Actual packet
+};
+
+// General incoming packet struct, used inside receiver window
+struct incoming_packet_t {
+    pkt_num pkt_num;            // Packet number
+    enum PacketType pkt_type;   // Packet type
     void *pkt;                  // Actual packet
 };
 
@@ -52,7 +59,7 @@ struct long_header_pkt_t {
     uint32_t version;
     conn_id dest_conn_id;
     conn_id src_conn_id;
-    void *payload;
+    char *payload;
 };
 
 /**
@@ -64,15 +71,13 @@ struct long_header_pkt_t {
         Reserved Bits (2),\n
         Packet Number Length (2),\n
         Version (32),\n
-        Destination Connection ID Length (8),\n
-        Destination Connection ID (0..160),\n
-        Source Connection ID Length (8),\n
-        Source Connection ID (0..160),\n
-        Token Length (i),\n
-        Token (..),\n
+        Destination Connection ID (64),\n
+        Source Connection ID (64),\n
+        Transport Parameters number (i), \n
+        Transport Parameters (..), \n
         Length (i),\n
-        Packet Number (8..32),\n
-        Packet Payload (8..),\n
+        Packet Number (i),\n
+        Packet Payload (..),\n
     }</pre>
  * @see <a href="https://datatracker.ietf.org/doc/html/rfc9000#name-initial-packet">Initial Packet - RFC 9000</a>
  */
@@ -82,7 +87,7 @@ struct initial_packet_t {
     conn_id dest_conn_id;
     conn_id src_conn_id;
     size_t transport_parameters_number;
-    transport_parameter *transport_parameters[17];
+    transport_parameter transport_parameters[17];
     size_t length;
     pkt_num packet_number;
     char *payload;
@@ -152,22 +157,21 @@ struct one_rtt_packet_t {
     conn_id dest_connection_id;
     pkt_num packet_number;
     size_t length;
-    void *payload;
+    char *payload;
 };
 
-void build_initial_packet(conn_id, conn_id,
-                          size_t, size_t,
-                          void *, initial_packet *);
+ssize_t process_incoming_dgram(char *, size_t, enum PeerType, struct sockaddr_in *, time_ms,
+                               int (*)(initial_packet *, struct sockaddr_in *, time_ms));
 
-void build_zero_rtt_packet(conn_id dest_conn_id, conn_id src_conn_id, varint *length,
-                           void *packet_number, void *payload, zero_rtt_packet *pkt);
+ssize_t process_received_packets(quic_connection *);
 
-void build_retry_packet(conn_id dest_conn_id, conn_id src_conn_id, void *retry_token,
-                        const uint64_t *retry_integrity_tag, retry_packet *pkt);
+void build_initial_packet(conn_id, conn_id, size_t, size_t, void *, pkt_num, initial_packet *);
 
 void build_one_rtt_packet(conn_id dest_conn_id, size_t, void *payload, one_rtt_packet *pkt);
 
 ssize_t write_packet_to_buf(char *, size_t off, const void *);
+
+int pad_packet(outgoing_packet *, size_t);
 
 size_t initial_pkt_len(const initial_packet *);
 
@@ -177,7 +181,7 @@ size_t retry_pkt_len(const retry_packet *);
 
 size_t one_rtt_pkt_len(const one_rtt_packet *);
 
-int read_initial_packet(long_header_pkt *, initial_packet *, quic_connection *);
+int read_initial_packet(long_header_pkt *, initial_packet *);
 
 int read_zero_rtt_packet(long_header_pkt *, zero_rtt_packet *);
 
@@ -187,14 +191,12 @@ int read_one_rtt_packet(void *, one_rtt_packet *);
 
 int set_pkt_num(void *, pkt_num);
 
-void *encode(pkt_num, size_t);
-
-void *encode_pkt_num(pkt_num, ssize_t, size_t *);
-
-pkt_num decode_pkt_num(pkt_num, pkt_num, size_t);
-
 int process_packet_payload(const char *, pkt_num, size_t, num_space, quic_connection *);
 
 int check_incoming_dgram(struct sockaddr_in *, quic_connection *);
+
+void write_initial_packet_to_buffer_for_forwarding(char *, initial_packet *);
+
+void write_one_rtt_packet_to_buffer_for_forwarding(char *, one_rtt_packet *);
 
 #endif //PACKETS

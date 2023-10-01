@@ -37,6 +37,4 @@
 #define NO_VIABLE_PATH            0x10
 #define CRYPTO_ERROR_BASE         0x100   // Not implemented
 
-void print_quic_error(char *);
-
 #endif //QUIC_ERRORS

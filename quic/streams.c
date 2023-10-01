@@ -13,7 +13,7 @@
  * @param mode  the stream type
  * @param str   where to store the opened stream
  */
-void open_stream(enum peer_type peer, enum stream_mode mode, stream *str) {
+void open_stream(enum PeerType peer, enum stream_mode mode, stream *str) {
     str->id = new_stream_id(peer, mode);
     str->mode = mode;
     str->peer = peer;
@@ -27,7 +27,7 @@ void open_stream(enum peer_type peer, enum stream_mode mode, stream *str) {
  * @param mode  the transfert_msg type (unidirectional or bidirectional)
  * @return      the new transfert_msg ID
  */
-uint64_t new_stream_id(enum peer_type peer, enum stream_mode mode) {
+uint64_t new_stream_id(enum PeerType peer, enum stream_mode mode) {
 
     uint8_t peer_mask, mode_mask;
     if (peer == SERVER)

@@ -21,12 +21,12 @@ int ack_pkt_range(quic_connection *conn, pkt_num start, pkt_num end, num_space s
 
     // Start must be lower than or equal to end
     if (start > end) {
-        print_quic_error("Start packet number cannot be greater than end packet number.");
+        log_quic_error("Start packet number cannot be greater than end packet number.");
         return -1;
     }
 
     // Neither start nor end indexes can refer to an already-acked packet
-    uint32_t first_pkt_num = conn->swnd.buffer[conn->swnd.read_index]->pkt_num;
+    pkt_num first_pkt_num = conn->swnd->buffer[conn->swnd->read_index]->pkt_num;
     if (start < first_pkt_num) {
         if (end < first_pkt_num)
             // Acknowledging already-acked packets, not a problem
@@ -37,8 +37,8 @@ int ack_pkt_range(quic_connection *conn, pkt_num start, pkt_num end, num_space s
     }
 
     // Checks if buffer is empty
-    if (conn->swnd.write_index == conn->swnd.read_index) {
-        print_quic_error("Window buffer is empty.");
+    if (conn->swnd->write_index == conn->swnd->read_index) {
+        log_quic_error("Window buffer is empty.");
         return -1;
     }
 
@@ -47,24 +47,24 @@ int ack_pkt_range(quic_connection *conn, pkt_num start, pkt_num end, num_space s
     // acknowledging other packets
     ssize_t start_index = -1;
     ssize_t end_index = -1;
-    ssize_t i = (long) conn->swnd.read_index;
-    while ((i % BUF_CAPACITY) != conn->swnd.write_index) {
-        if (conn->swnd.buffer[i]->pkt_num == start && conn->swnd.buffer[i]->space == space)
+    ssize_t i = (long) conn->swnd->read_index;
+    while ((i % BUF_CAPACITY) != conn->swnd->write_index) {
+        if (conn->swnd->buffer[i]->pkt_num == start && conn->swnd->buffer[i]->space == space)
             start_index = i;
-        if (conn->swnd.buffer[i]->pkt_num == end && conn->swnd.buffer[i]->space == space)
+        if (conn->swnd->buffer[i]->pkt_num == end && conn->swnd->buffer[i]->space == space)
             end_index = i;
         i++;
     }
 
     // Start packet number not found
     if (start_index == -1) {
-        print_quic_error("Could not find start packet number.");
+        log_quic_error("Could not find start packet number.");
         return -1;
     }
 
     // End packet number not found
     if (end_index == -1) {
-        print_quic_error("Could not find end packet number.");
+        log_quic_error("Could not find end packet number.");
         return -1;
     }
 
@@ -73,25 +73,25 @@ int ack_pkt_range(quic_connection *conn, pkt_num start, pkt_num end, num_space s
     // Adjusts congestion control window size too
     i = start_index;
     while (i <= end_index) {
-        conn->swnd.buffer[i]->acked = 1;
-        conn->bytes_in_flight -= conn->swnd.buffer[i]->length;
+        conn->swnd->buffer[i]->acked = 1;
+        conn->bytes_in_flight -= conn->swnd->buffer[i]->length;
 
         // Do not increase cwnd if in recovery state
-        if (!conn->swnd.buffer[i]->in_flight &&
-            !in_cong_recovery_state(conn, conn->swnd.buffer[i]->send_time)) {
+        if (!conn->swnd->buffer[i]->in_flight &&
+            !in_cong_recovery_state(conn, conn->swnd->buffer[i]->send_time)) {
             if (conn->cwnd < conn->ssthresh)
                 // Slow start state
-                conn->cwnd += conn->swnd.buffer[i]->length;
+                conn->cwnd += conn->swnd->buffer[i]->length;
             else
                 // Congestion avoidance
-                conn->cwnd += MAX_DATAGRAM_SIZE * conn->swnd.buffer[i]->length / conn->cwnd;
+                conn->cwnd += MAX_DATAGRAM_SIZE * conn->swnd->buffer[i]->length / conn->cwnd;
         }
         i++;
     }
 
     // Updates read index if packet are acked from the beginning
-    if (start_index == conn->swnd.read_index)
-        conn->swnd.read_index = (end_index + 1) % BUF_CAPACITY;
+    if (start_index == conn->swnd->read_index)
+        conn->swnd->read_index = (end_index + 1) % BUF_CAPACITY;
     return 0;
 }
 
@@ -145,8 +145,13 @@ int is_lost(sender_window *wnd, packet *pkt, size_t start_index, time_t threshol
  * @return      the number of the packets to be sent (0 if none)
  */
 size_t count_to_be_sent(sender_window *wnd) {
+    if (wnd->read_index == wnd->write_index) {
+        // Buffer is empty
+        return 0;
+    }
+
     size_t count = 0, i = wnd->read_index;
-    packet *pkt = wnd->buffer[i];
+    outgoing_packet *pkt = wnd->buffer[i];
     while (i != wnd->write_index) {
         if (pkt->send_time == 0 &&
             !(pkt->in_flight ||
@@ -168,7 +173,7 @@ size_t count_to_be_sent(sender_window *wnd) {
  * @return      a pointer to the packet with the given packet number,
  *              NULL if the packet has not been found
  */
-packet *get_pkt_num_in_space(const sender_window *wnd, pkt_num pkt_num, num_space space) {
+outgoing_packet *get_pkt_num_in_space(const sender_window *wnd, pkt_num pkt_num, num_space space) {
     size_t i = wnd->read_index;
     while (i != wnd->write_index) {
         if (wnd->buffer[i]->pkt_num == pkt_num && wnd->buffer[i]->space == space)
@@ -183,7 +188,7 @@ packet *get_pkt_num_in_space(const sender_window *wnd, pkt_num pkt_num, num_spac
  * @param space the packet number space
  * @return      the packet number found, or (pkt_num) -1 if not found
  */
-packet *get_largest_in_space(const sender_window *wnd, num_space space) {
+outgoing_packet *get_largest_in_space(const sender_window *wnd, num_space space) {
     size_t i = (wnd->write_index - 1) % BUF_CAPACITY;
     while (i != wnd->read_index) {
         if (wnd->buffer[i]->space == space)
@@ -199,7 +204,7 @@ packet *get_largest_in_space(const sender_window *wnd, num_space space) {
  * @param space the packet number space
  * @return      the largest acknowledged packet number in the space
  */
-packet *get_largest_acked_in_space(const sender_window *wnd, num_space space) {
+outgoing_packet *get_largest_acked_in_space(const sender_window *wnd, num_space space) {
     size_t i = (wnd->write_index - 1) % BUF_CAPACITY;
     while (i != (wnd->read_index - 1) % BUF_CAPACITY) {
         if (wnd->buffer[i]->space == space)
@@ -219,15 +224,11 @@ packet *get_largest_acked_in_space(const sender_window *wnd, num_space space) {
  * @param pkt   the packet to be inserted
  * @return      0 on success, -1 on errors
  */
-int put_in_sender_window(sender_window *wnd, packet *pkt) {
+int put_in_sender_window(sender_window *wnd, outgoing_packet *pkt) {
     if ((wnd->write_index + 1) % BUF_CAPACITY == wnd->read_index) {
-        print_quic_error("Buffer is full.");
+        log_quic_error("Buffer is full.");
         return -1;
     }
-    pkt_num num = get_largest_in_space(wnd, pkt->space)->pkt_num;
-    pkt->pkt_num = num + 1;
-    if (set_pkt_num(pkt->pkt, pkt->pkt_num) < 0)
-        return -1;
     wnd->buffer[wnd->write_index] = pkt;
     wnd->write_index = (wnd->write_index + 1) % BUF_CAPACITY;
     return 0;
@@ -282,7 +283,7 @@ time_ms send_time(const sender_window *wnd, pkt_num pkt_num) {
  * @return      true if there are ack-eliciting packets in flight, false otherwise
  */
 bool in_flight_ack_eliciting(sender_window *wnd) {
-    packet *pkt;
+    outgoing_packet *pkt;
     size_t i = wnd->read_index;
     while (i != wnd->write_index) {
         pkt = wnd->buffer[i];
@@ -301,7 +302,7 @@ bool in_flight_ack_eliciting(sender_window *wnd) {
  * @return
  */
 bool in_flight_ack_eliciting_in_space(sender_window *wnd, num_space space) {
-    packet *pkt;
+    outgoing_packet *pkt;
     size_t i = wnd->read_index;
     while (i != wnd->write_index) {
         pkt = wnd->buffer[i];
@@ -313,20 +314,23 @@ bool in_flight_ack_eliciting_in_space(sender_window *wnd, num_space space) {
 }
 
 /**
- * @brief Inserts a transfert_msg inside a receiver window
+ * @brief Inserts an incoming inside a receiver window
  *
  * @param wnd       the receiver window
- * @param msg       the transfert_msg to be put inside thw window
- * @param offset    the offset to which the message has to be written
+ * @param pkt       the incoming packet to put inside the receiver window
  * @return      0 on success, -1 on errors
  */
-int put_in_receiver_window(receiver_window *wnd, transfert_msg *msg, size_t offset) {
+int put_in_receiver_window(receiver_window *wnd, incoming_packet *pkt) {
     if ((wnd->write_index + 1) % BUF_CAPACITY == wnd->read_index) {
-        print_quic_error("Buffer is full.");
+        log_quic_error("Buffer is full.");
         return -1;
     }
+    wnd->buffer[wnd->write_index] = pkt;
+    wnd->write_index = (wnd->write_index + 1) % BUF_CAPACITY;
+    return 0;
+
     // Checks if packet is already present in the window
-    transfert_msg *old_msg;
+    /*transfert_msg *old_msg;
     if ((old_msg = is_message_in_wnd(wnd, msg)) == NULL) {
         // Insert new message in window
         wnd->buffer[wnd->write_index] = msg;
@@ -348,14 +352,34 @@ int put_in_receiver_window(receiver_window *wnd, transfert_msg *msg, size_t offs
             size_t new_size = offset + msg->len;
             void *p = realloc(old_msg->msg, new_size);
             if (p == NULL) {
-                print_quic_error("Error while reallocating message");
+                log_quic_error("Error while reallocating message");
                 return -1;
             }
             strcpy(old_msg->msg + offset, msg->msg);
             old_msg->len = new_size;
         }
         return 0;
+    }*/
+}
+
+/**
+ * @brief Counts how many packets have to be
+ *          precessed inside the receiver window
+ *
+ * @param rwnd  the receiver window
+ * @return      the number of packets to be processed on the window
+ */
+size_t count_to_be_processed(receiver_window *rwnd) {
+    if (rwnd->read_index == rwnd->write_index) {
+        // Buffer is empty
+        return 0;
     }
+    size_t i = rwnd->read_index, count = 0;
+    while (i != (rwnd->write_index - 1) % BUF_CAPACITY) {
+        count++;
+        i = (i + 1) % BUF_CAPACITY;
+    }
+    return count;
 }
 
 /**
@@ -368,7 +392,7 @@ int put_in_receiver_window(receiver_window *wnd, transfert_msg *msg, size_t offs
  * @param msg   the transfert message
  * @return      true if the message was already inserted, false otherwise
  */
-transfert_msg *is_message_in_wnd(receiver_window *wnd, transfert_msg *msg) {
+/*transfert_msg *is_message_in_wnd(receiver_window *wnd, transfert_msg *msg) {
     size_t i = wnd->read_index;
     while (i != wnd->write_index) {
         if (wnd->buffer[i]->stream_id == msg->stream_id)
@@ -376,7 +400,7 @@ transfert_msg *is_message_in_wnd(receiver_window *wnd, transfert_msg *msg) {
         i = (i + 1) % BUF_CAPACITY;
     }
     return NULL;
-}
+}*/
 
 /**
  * @brief Gets the last inserted transfert_msg in the receiver window
@@ -385,7 +409,7 @@ transfert_msg *is_message_in_wnd(receiver_window *wnd, transfert_msg *msg) {
  * @param res   the result transfert_msg
  * @return      0 on success, if the window is empty
  */
-int get_last_from_receiver_window(receiver_window *wnd, transfert_msg *res) {
+int get_last_from_receiver_window(receiver_window *wnd, incoming_packet *res) {
     if (wnd->read_index == wnd->write_index)
         // Buffer is empty
         return -1;

@@ -56,7 +56,7 @@ varint *write_var_int_62(const uint64_t value) {
             // add the value 0xc0, which is binary 11000000, to set
             // the value 11 in the most significant bits.
             target = malloc(2);
-            *(target + 0) = ((value >> 8) & 0x3f) + 0x10;
+            *(target + 0) = ((value >> 8) & 0x3f) + 0x40;
             *(target + 1) = value & 0xff;
             return target;
         }
@@ -77,7 +77,7 @@ varint *write_var_int_62(const uint64_t value) {
 uint64_t read_var_int_62(const varint *value) {
 
     // Takes most significant two bits as varint length
-    size_t length = varint_len(value);
+    size_t length = 1 << ((value[0] & 0xc0) >> 6);
     uint64_t ret = 0;
 
     switch (length) {
@@ -116,8 +116,8 @@ uint64_t read_var_int_62(const varint *value) {
 }
 
 size_t varint_len(const varint *value) {
-    size_t i = (value[0] & 0xc0) >> 6;
-    return (size_t) pow(2, i);
+    uint8_t i = (value[0] & 0xc0) >> 6;
+    return 1 << i;
 }
 
 size_t bytes_needed(uint64_t value) {
@@ -135,4 +135,17 @@ size_t bytes_needed(uint64_t value) {
         return 1;
     }
     return 0;
+}
+
+void print_varint(varint *var_int) {
+    size_t len = varint_len(var_int);
+    printf("Printing %ld:\n", read_var_int_62(var_int));
+    for (int i = 0; i < len; i++) {
+        printf("%x\t", var_int[i]);
+    }
+    printf("\n");
+    for (int i = 0; i < len; i++) {
+        printf("%u\t", var_int[i]);
+    }
+    printf("\n");
 }
