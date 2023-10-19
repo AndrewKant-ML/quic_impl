@@ -19,15 +19,14 @@ process_incoming_dgram(char *dgram, size_t len, enum PeerType peer, struct socka
     ssize_t parsed_packets = 0;
     while (read < len) {
         uint8_t first_byte = *(uint8_t *) dgram;
-        read += 1;
 
         // Header type and fixed bit check
         uint8_t pkt_type = first_byte & PACKET_HEADER_MASK;
         if (pkt_type == LONG_HEADER_FORM) {
             // Long header version check
-            size_t pkt_off = 0;
             long_header_pkt *long_pkt = (long_header_pkt *) calloc(1, sizeof(long_header_pkt));
             long_pkt->first_byte = first_byte;
+            size_t pkt_off = 1;
             long_pkt->version = (uint32_t) read_var_int_62((varint *) &dgram[read + pkt_off]);
             pkt_off += bytes_needed(long_pkt->version);
             long_pkt->dest_conn_id = (uint32_t) read_var_int_62((varint *) &dgram[read + pkt_off]);
@@ -42,7 +41,7 @@ process_incoming_dgram(char *dgram, size_t len, enum PeerType peer, struct socka
             }
             quic_connection *conn = multiplex(long_pkt->dest_conn_id);
 
-            incoming_packet pkt;
+            incoming_packet *pkt = (incoming_packet *) calloc(1, sizeof(incoming_packet));
 
             // Long header packet type check
             pkt_type = pkt_type & TYPE_SPECIFIC_BITS_MASK;
@@ -55,6 +54,7 @@ process_incoming_dgram(char *dgram, size_t len, enum PeerType peer, struct socka
                             if (peer == CLIENT) {
                                 // Client cannot accept incoming connection request
                                 log_quic_error("Client cannot accept incoming connection request");
+                                return -1;
                             } else if (parsed_packets == 0) {
                                 // If the datagram did not include other packets
                                 // before this Initial, must open a new connection
@@ -62,7 +62,10 @@ process_incoming_dgram(char *dgram, size_t len, enum PeerType peer, struct socka
                                     log_msg("Successfully processed new connection request");
                                     // Return because client must not send other
                                     // packet together with the first Initial one
-                                    return 0;
+                                    parsed_packets++;
+                                    read += initial_pkt_len(initial_pkt);
+                                    free(long_pkt);
+                                    break;
                                 } else {
                                     log_quic_error("Error while processing new connection request");
                                     return -1;
@@ -74,10 +77,10 @@ process_incoming_dgram(char *dgram, size_t len, enum PeerType peer, struct socka
                                 conn->peer_conn_ids_num++;
                             }
                             // Already-opened connection, enqueue packet in receiver window
-                            pkt.pkt_type = TYPE_INITIAL;
-                            pkt.pkt_num = initial_pkt->packet_number;
-                            pkt.pkt = initial_pkt;
-                            if (put_in_receiver_window(conn->rwnd, &pkt) == 0) {
+                            pkt->pkt_type = TYPE_INITIAL;
+                            pkt->pkt_num = initial_pkt->packet_number;
+                            pkt->pkt = (void *) initial_pkt;
+                            if (put_in_receiver_window(conn->rwnd, pkt) == 0) {
                                 //log_msg("Initial packet inserted inside receiver window");
                                 read += initial_pkt_len(initial_pkt);
                                 parsed_packets++;
@@ -106,15 +109,16 @@ process_incoming_dgram(char *dgram, size_t len, enum PeerType peer, struct socka
                 }
             }
         } else if (pkt_type == SHORT_HEADER_FORM) {
-            one_rtt_packet one_rtt;
-            if (read_one_rtt_packet((void *) &dgram[read], &one_rtt) == 0) {
-                quic_connection *conn = multiplex(one_rtt.dest_connection_id);
-                incoming_packet pkt;
-                pkt.pkt_type = TYPE_ONE_RTT;
-                pkt.pkt_num = one_rtt.packet_number;
-                pkt.pkt = (void *) &one_rtt;
-                if (put_in_receiver_window(conn->rwnd, &pkt) == 0) {
+            one_rtt_packet *one_rtt = (one_rtt_packet *) calloc(1, sizeof(one_rtt_packet));
+            if (read_one_rtt_packet(dgram + read, one_rtt) == 0) {
+                quic_connection *conn = multiplex(one_rtt->dest_connection_id);
+                incoming_packet *pkt = (incoming_packet *) calloc(1, sizeof(incoming_packet));
+                pkt->pkt_type = TYPE_ONE_RTT;
+                pkt->pkt_num = one_rtt->packet_number;
+                pkt->pkt = (void *) one_rtt;
+                if (put_in_receiver_window(conn->rwnd, pkt) == 0) {
                     parsed_packets++;
+                    read += one_rtt->length;
                 }
             } else {
                 log_quic_error("Error while reading 1-RTT packet");
@@ -147,11 +151,16 @@ ssize_t process_received_packets(quic_connection *conn) {
                 initial_packet *initial = (initial_packet *) pkt->pkt;
                 if (process_packet_payload(initial->payload, initial->packet_number, initial->length, INITIAL, conn) ==
                     0) {
-                    log_msg("Successfully processed Initial packet payload");
-                    processed++;
+                    if (read_transport_parameters(initial, conn, conn->peer_type) == 0) {
+                        log_msg("Successfully processed Initial packet payload");
+                        processed++;
+                        conn->rwnd->read_index += (conn->rwnd->read_index + 1) % BUF_CAPACITY;
+                    } else
+                        log_quic_error("Error while processing transport parameters");
                     break;
                 } else
                     log_quic_error("Error while processing Initial packet payload");
+                break;
             }
             case TYPE_RETRY:
                 break;
@@ -163,9 +172,14 @@ ssize_t process_received_packets(quic_connection *conn) {
                                            conn) == 0) {
                     log_msg("Successfully processed 1-RTT packet payload");
                     processed++;
+                    conn->rwnd->read_index++;
                 } else
                     log_quic_error("Error while processing 1-RTT packet payload");
                 break;
+            }
+            default: {
+                log_quic_error("Unrecognized packet type");
+                return -1;
             }
         }
         i = (i + 1) % BUF_CAPACITY;
@@ -177,6 +191,7 @@ void build_initial_packet(conn_id dest_conn_id, conn_id src_conn_id, size_t leng
                           size_t transport_parameters_number, void *payload, pkt_num pkt_num,
                           initial_packet *pkt) {
     pkt->first_byte = LONG_HEADER_FORM | PACKET_TYPE_INITIAL;
+    pkt->first_byte |= (uint8_t) log2((double) bytes_needed(pkt_num));
     pkt->version = VERSION;
     pkt->dest_conn_id = dest_conn_id;
     pkt->src_conn_id = src_conn_id;
@@ -225,29 +240,13 @@ void build_retry_packet(conn_id dest_conn_id, conn_id src_conn_id, void *retry_t
     pkt->retry_integrity_tag[1] = *(retry_integrity_tag + 1);
 }
 
-void build_one_rtt_packet(conn_id dest_conn_id, size_t len, void *payload, one_rtt_packet *pkt) {
+void build_one_rtt_packet(conn_id dest_conn_id, size_t len, pkt_num pkt_num, void *payload, one_rtt_packet *pkt) {
     pkt->first_byte = SHORT_HEADER_FORM;
+    pkt->first_byte |= (uint8_t) log2((double) bytes_needed(pkt_num));
     pkt->dest_connection_id = dest_conn_id;
-
-    size_t diff = MIN_DATAGRAM_SIZE - len;
-    void *p = payload;
-    if (diff > 0)
-        p = realloc(payload, len + diff);
-    if (p == NULL) {
-        log_quic_error("Error while padding Initial packet");
-        return;
-    }
-    void *buf = p;
-    uint8_t src = TYPE_PADDING;
-    size_t src_len = sizeof(src);
-    size_t off = 0;
-    while (len < MIN_DATAGRAM_SIZE) {
-        memcpy(buf + off, (void *) &src, src_len);
-        off += src_len;
-        len += src_len;
-    }
+    pkt->packet_number = pkt_num;
     pkt->length = len;
-    pkt->payload = p;
+    pkt->payload = payload;
 }
 
 /**
@@ -380,12 +379,11 @@ size_t retry_pkt_len(const retry_packet *pkt) {
  * @return      the size of the 1-RTT packet
  */
 size_t one_rtt_pkt_len(const one_rtt_packet *pkt) {
-    size_t len = sizeof(uint8_t) + sizeof(conn_id);
+    size_t len = sizeof(uint8_t) + bytes_needed(pkt->dest_connection_id);
     // Packet number length
-    len += (pkt->first_byte & PACKET_NUMBER_LENGTH_MASK) + 1;
-    varint *pkt_len = write_var_int_62(pkt->length);
-    len += varint_len(pkt_len) + pkt->length;
-    free(pkt_len);
+    len += bytes_needed(pkt->packet_number);
+    len += bytes_needed(pkt->length);
+    len += pkt->length;
     return len;
 }
 
@@ -432,64 +430,25 @@ int read_retry_packet(long_header_pkt *pkt, retry_packet *dest) {
 
 }
 
-int read_one_rtt_packet(void *pkt, one_rtt_packet *dest) {
+int read_one_rtt_packet(char *pkt, one_rtt_packet *dest) {
+    size_t read = 0;
     uint8_t first_byte = *(uint8_t *) pkt;
     dest->first_byte = first_byte;
-    pkt += sizeof(dest->first_byte);
+    read++;
 
-    dest->dest_connection_id = *(conn_id *) pkt;
-    pkt += sizeof(dest->dest_connection_id);
+    dest->dest_connection_id = read_var_int_62((varint *) (pkt + read));
+    read += bytes_needed(dest->dest_connection_id);
 
-    size_t pkt_len = first_byte & PACKET_NUMBER_LENGTH_MASK;
-    dest->packet_number = (pkt_num) read_var_int_62((varint *) pkt);
-    pkt += pkt_len;
+    dest->packet_number = read_var_int_62((varint *) (pkt + read));
+    read += bytes_needed(dest->packet_number);
 
-    uint64_t len = read_var_int_62((varint *) pkt);
-    dest->length = len;
-    pkt += varint_len((varint *) pkt);
+    dest->length = read_var_int_62((varint *) (pkt + read));
+    read += bytes_needed(dest->length);
 
-    dest->payload = malloc(len);
-    memcpy(dest->payload, pkt, len);
-    return 0;
-}
-
-/**
- * @brief Set the encoded packet number to the packet
- *
- * @param pkt   the raw packet
- * @param num   the packet number
- * @return      0 on success, -1 on errors
- */
-int set_pkt_num(void *pkt, pkt_num num) {
-    uint8_t header_type = (*(uint8_t *) pkt) & PACKET_HEADER_MASK;
-    if (header_type == LONG_HEADER_FORM) {
-        uint8_t pkt_type = (*(uint8_t *) pkt) & TYPE_SPECIFIC_BITS_MASK;
-        switch (pkt_type) {
-            case PACKET_TYPE_INITIAL: {
-                initial_packet *init_pkt = (initial_packet *) pkt;
-                init_pkt->packet_number = num;
-                init_pkt->first_byte |= (uint8_t) log2((double) bytes_needed(num));
-                break;
-            }
-            case PACKET_TYPE_RETRY: {
-                break;
-            }
-            case PACKET_TYPE_0_RTT: {
-                break;
-            }
-            default: {
-                log_quic_error("Unrecognized long header packet type.");
-                return -1;
-            }
-        }
-    } else if (header_type == SHORT_HEADER_FORM) {
-        one_rtt_packet *one_rtt = (one_rtt_packet *) pkt;
-        one_rtt->packet_number = num;
-        one_rtt->first_byte &= (uint8_t) log2((double) bytes_needed(num));
-    } else {
-        log_quic_error("Unrecognized header type.");
+    dest->payload = (char *) calloc(1, dest->length);
+    if (dest->payload == NULL)
         return -1;
-    }
+    memcpy(dest->payload, pkt + read, dest->length);
     return 0;
 }
 
@@ -509,7 +468,7 @@ int set_pkt_num(void *pkt, pkt_num num) {
 int process_packet_payload(const char *buf, pkt_num num, size_t len, num_space space, quic_connection *conn) {
     size_t frame_len, computed = 0;
     while (computed < len) {
-        if ((frame_len = process_frame(buf+computed, num, space, conn)) > 0) {
+        if ((frame_len = process_frame(buf + computed, num, space, conn)) > 0) {
             computed += frame_len;
         } else {
             log_quic_error("Error while processing frame");
@@ -625,7 +584,7 @@ void write_one_rtt_packet_to_buffer_for_forwarding(char *buf, one_rtt_packet *pk
     written += field_len;
     free(vi);
 
-    memcpy(&buf[written], (void *) &pkt->payload, pkt->length);
+    memcpy(&buf[written], pkt->payload, pkt->length);
 }
 
 /**
@@ -640,7 +599,7 @@ int pad_packet(outgoing_packet *pkt, size_t pad_len) {
     size_t padding_len = sizeof(padding);
     size_t off = 0;
     uint8_t first_byte = ((uint8_t *) pkt->pkt)[off++];
-    if (first_byte & PACKET_HEADER_MASK) {
+    if ((first_byte & PACKET_HEADER_MASK) == LONG_HEADER_FORM) {
         long_header_pkt long_header;
         long_header.first_byte = first_byte;
         long_header.version = read_var_int_62((varint *) (pkt->pkt + off));
@@ -684,18 +643,22 @@ int pad_packet(outgoing_packet *pkt, size_t pad_len) {
         }
     } else {
         // Short header, 1-RTT packet
-        one_rtt_packet one_rtt;
-        read_one_rtt_packet(pkt, &one_rtt);
-        one_rtt.length += pad_len;
-        if (realloc(one_rtt.payload, one_rtt.length) != NULL) {
-            off = 0;
-            for (size_t i = 0; i < pad_len / padding_len; i++) {
-                memcpy((void *) &one_rtt.payload[off], &padding, padding_len);
-                off += padding_len;
-            }
-        } else {
-            log_quic_error("Realloc error");
-            return -1;
+        one_rtt_packet *one_rtt = (one_rtt_packet *) calloc(1, sizeof(one_rtt_packet));
+        read_one_rtt_packet((char *) pkt->pkt, one_rtt);
+
+        size_t offset = 1;
+        offset += varint_len((varint *) (pkt->pkt + offset));
+        offset += varint_len((varint *) (pkt->pkt + offset));
+        varint *vi_len = write_var_int_62(MIN_DATAGRAM_SIZE);
+        memcpy(pkt->pkt + offset, vi_len, varint_len(vi_len));
+        offset += varint_len(vi_len);
+        memcpy(pkt->pkt + offset, one_rtt->payload, one_rtt->length);
+        offset += one_rtt->length;
+
+        for (size_t i = 0; i < pad_len / padding_len; i++) {
+            memcpy(pkt->pkt + offset, &padding, padding_len);
+            offset += padding_len;
         }
+        return 0;
     }
 }

@@ -18,6 +18,10 @@ char *parse_get_or_put_msg(char *);
 
 void write_response(uint8_t code, char *, char *);
 
-char *exec_get_request(char *);
+int exec_get_request(char *);
+
+char *exec_put_request(char *);
+
+char *exec(transfert_msg *);
 
 #endif //SERVER_FUNC

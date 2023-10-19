@@ -183,22 +183,6 @@ outgoing_packet *get_pkt_num_in_space(const sender_window *wnd, pkt_num pkt_num,
 }
 
 /**
- * @brief Gets the largest packet number of processed packets
- * @param wnd   the packet window
- * @param space the packet number space
- * @return      the packet number found, or (pkt_num) -1 if not found
- */
-outgoing_packet *get_largest_in_space(const sender_window *wnd, num_space space) {
-    size_t i = (wnd->write_index - 1) % BUF_CAPACITY;
-    while (i != wnd->read_index) {
-        if (wnd->buffer[i]->space == space)
-            return wnd->buffer[i];
-        i = (i - 1) % BUF_CAPACITY;
-    }
-    return NULL;
-}
-
-/**
  * @brief Gets the largest packet number in a space
  * @param wnd   the packet window
  * @param space the packet number space
@@ -328,38 +312,6 @@ int put_in_receiver_window(receiver_window *wnd, incoming_packet *pkt) {
     wnd->buffer[wnd->write_index] = pkt;
     wnd->write_index = (wnd->write_index + 1) % BUF_CAPACITY;
     return 0;
-
-    // Checks if packet is already present in the window
-    /*transfert_msg *old_msg;
-    if ((old_msg = is_message_in_wnd(wnd, msg)) == NULL) {
-        // Insert new message in window
-        wnd->buffer[wnd->write_index] = msg;
-        wnd->write_index = (wnd->write_index + 1) % BUF_CAPACITY;
-        return 0;
-    } else {
-        // Marks end reached if needed
-        if (msg->end_reached)
-            old_msg->end_reached = true;
-        // Puts message data to the existing one in the window, at a given offset
-        if (offset < old_msg->len - 1) {
-            // No need to reallocate new memory (assuming incoming data will not overlap)
-            // Just copies bytes, do not rewrite null-terminating byte (\0)
-            memcpy(old_msg->msg + offset, msg->msg, strlen(msg->msg));
-        } else {
-            // Writing after the string end, reallocating memory.
-            // New size is computed from the end of the older message,
-            // the added offset and the new message length
-            size_t new_size = offset + msg->len;
-            void *p = realloc(old_msg->msg, new_size);
-            if (p == NULL) {
-                log_quic_error("Error while reallocating message");
-                return -1;
-            }
-            strcpy(old_msg->msg + offset, msg->msg);
-            old_msg->len = new_size;
-        }
-        return 0;
-    }*/
 }
 
 /**
@@ -375,7 +327,7 @@ size_t count_to_be_processed(receiver_window *rwnd) {
         return 0;
     }
     size_t i = rwnd->read_index, count = 0;
-    while (i != (rwnd->write_index - 1) % BUF_CAPACITY) {
+    while (i != rwnd->write_index) {
         count++;
         i = (i + 1) % BUF_CAPACITY;
     }

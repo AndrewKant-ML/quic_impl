@@ -41,138 +41,272 @@ include CMakeFiles/rules.ninja
 
 cmake_ninja_workdir = /home/andrea/CLionProjects/iiw/cmake-build-debug/
 # =============================================================================
-# Object build statements for EXECUTABLE target iiw
+# Object build statements for EXECUTABLE target iiw_server
 
 
 #############################################
-# Order-only phony target for iiw
+# Order-only phony target for iiw_server
 
-build cmake_object_order_depends_target_iiw: phony || CMakeFiles/iiw.dir
+build cmake_object_order_depends_target_iiw_server: phony || CMakeFiles/iiw_server.dir
 
-build CMakeFiles/iiw.dir/server.c.o: C_COMPILER__iiw_unscanned_Debug /home/andrea/CLionProjects/iiw/server.c || cmake_object_order_depends_target_iiw
-  DEP_FILE = CMakeFiles/iiw.dir/server.c.o.d
+build CMakeFiles/iiw_server.dir/server.c.o: C_COMPILER__iiw_server_unscanned_Debug /home/andrea/CLionProjects/iiw/server.c || cmake_object_order_depends_target_iiw_server
+  DEP_FILE = CMakeFiles/iiw_server.dir/server.c.o.d
   FLAGS = -g -std=gnu11 -fdiagnostics-color=always
-  OBJECT_DIR = CMakeFiles/iiw.dir
-  OBJECT_FILE_DIR = CMakeFiles/iiw.dir
+  OBJECT_DIR = CMakeFiles/iiw_server.dir
+  OBJECT_FILE_DIR = CMakeFiles/iiw_server.dir
 
-build CMakeFiles/iiw.dir/quic/varint.c.o: C_COMPILER__iiw_unscanned_Debug /home/andrea/CLionProjects/iiw/quic/varint.c || cmake_object_order_depends_target_iiw
-  DEP_FILE = CMakeFiles/iiw.dir/quic/varint.c.o.d
+build CMakeFiles/iiw_server.dir/quic/varint.c.o: C_COMPILER__iiw_server_unscanned_Debug /home/andrea/CLionProjects/iiw/quic/varint.c || cmake_object_order_depends_target_iiw_server
+  DEP_FILE = CMakeFiles/iiw_server.dir/quic/varint.c.o.d
   FLAGS = -g -std=gnu11 -fdiagnostics-color=always
-  OBJECT_DIR = CMakeFiles/iiw.dir
-  OBJECT_FILE_DIR = CMakeFiles/iiw.dir/quic
+  OBJECT_DIR = CMakeFiles/iiw_server.dir
+  OBJECT_FILE_DIR = CMakeFiles/iiw_server.dir/quic
 
-build CMakeFiles/iiw.dir/quic/quic_conn.c.o: C_COMPILER__iiw_unscanned_Debug /home/andrea/CLionProjects/iiw/quic/quic_conn.c || cmake_object_order_depends_target_iiw
-  DEP_FILE = CMakeFiles/iiw.dir/quic/quic_conn.c.o.d
+build CMakeFiles/iiw_server.dir/quic/quic_conn.c.o: C_COMPILER__iiw_server_unscanned_Debug /home/andrea/CLionProjects/iiw/quic/quic_conn.c || cmake_object_order_depends_target_iiw_server
+  DEP_FILE = CMakeFiles/iiw_server.dir/quic/quic_conn.c.o.d
   FLAGS = -g -std=gnu11 -fdiagnostics-color=always
-  OBJECT_DIR = CMakeFiles/iiw.dir
-  OBJECT_FILE_DIR = CMakeFiles/iiw.dir/quic
+  OBJECT_DIR = CMakeFiles/iiw_server.dir
+  OBJECT_FILE_DIR = CMakeFiles/iiw_server.dir/quic
 
-build CMakeFiles/iiw.dir/quic/packets.c.o: C_COMPILER__iiw_unscanned_Debug /home/andrea/CLionProjects/iiw/quic/packets.c || cmake_object_order_depends_target_iiw
-  DEP_FILE = CMakeFiles/iiw.dir/quic/packets.c.o.d
+build CMakeFiles/iiw_server.dir/quic/packets.c.o: C_COMPILER__iiw_server_unscanned_Debug /home/andrea/CLionProjects/iiw/quic/packets.c || cmake_object_order_depends_target_iiw_server
+  DEP_FILE = CMakeFiles/iiw_server.dir/quic/packets.c.o.d
   FLAGS = -g -std=gnu11 -fdiagnostics-color=always
-  OBJECT_DIR = CMakeFiles/iiw.dir
-  OBJECT_FILE_DIR = CMakeFiles/iiw.dir/quic
+  OBJECT_DIR = CMakeFiles/iiw_server.dir
+  OBJECT_FILE_DIR = CMakeFiles/iiw_server.dir/quic
 
-build CMakeFiles/iiw.dir/quic/transfert/server_func.c.o: C_COMPILER__iiw_unscanned_Debug /home/andrea/CLionProjects/iiw/quic/transfert/server_func.c || cmake_object_order_depends_target_iiw
-  DEP_FILE = CMakeFiles/iiw.dir/quic/transfert/server_func.c.o.d
+build CMakeFiles/iiw_server.dir/quic/transfert/server_func.c.o: C_COMPILER__iiw_server_unscanned_Debug /home/andrea/CLionProjects/iiw/quic/transfert/server_func.c || cmake_object_order_depends_target_iiw_server
+  DEP_FILE = CMakeFiles/iiw_server.dir/quic/transfert/server_func.c.o.d
   FLAGS = -g -std=gnu11 -fdiagnostics-color=always
-  OBJECT_DIR = CMakeFiles/iiw.dir
-  OBJECT_FILE_DIR = CMakeFiles/iiw.dir/quic/transfert
+  OBJECT_DIR = CMakeFiles/iiw_server.dir
+  OBJECT_FILE_DIR = CMakeFiles/iiw_server.dir/quic/transfert
 
-build CMakeFiles/iiw.dir/quic/transfert/client_func.c.o: C_COMPILER__iiw_unscanned_Debug /home/andrea/CLionProjects/iiw/quic/transfert/client_func.c || cmake_object_order_depends_target_iiw
-  DEP_FILE = CMakeFiles/iiw.dir/quic/transfert/client_func.c.o.d
+build CMakeFiles/iiw_server.dir/quic/transfert/client_func.c.o: C_COMPILER__iiw_server_unscanned_Debug /home/andrea/CLionProjects/iiw/quic/transfert/client_func.c || cmake_object_order_depends_target_iiw_server
+  DEP_FILE = CMakeFiles/iiw_server.dir/quic/transfert/client_func.c.o.d
   FLAGS = -g -std=gnu11 -fdiagnostics-color=always
-  OBJECT_DIR = CMakeFiles/iiw.dir
-  OBJECT_FILE_DIR = CMakeFiles/iiw.dir/quic/transfert
+  OBJECT_DIR = CMakeFiles/iiw_server.dir
+  OBJECT_FILE_DIR = CMakeFiles/iiw_server.dir/quic/transfert
 
-build CMakeFiles/iiw.dir/quic/transfert/messages.c.o: C_COMPILER__iiw_unscanned_Debug /home/andrea/CLionProjects/iiw/quic/transfert/messages.c || cmake_object_order_depends_target_iiw
-  DEP_FILE = CMakeFiles/iiw.dir/quic/transfert/messages.c.o.d
+build CMakeFiles/iiw_server.dir/quic/transfert/messages.c.o: C_COMPILER__iiw_server_unscanned_Debug /home/andrea/CLionProjects/iiw/quic/transfert/messages.c || cmake_object_order_depends_target_iiw_server
+  DEP_FILE = CMakeFiles/iiw_server.dir/quic/transfert/messages.c.o.d
   FLAGS = -g -std=gnu11 -fdiagnostics-color=always
-  OBJECT_DIR = CMakeFiles/iiw.dir
-  OBJECT_FILE_DIR = CMakeFiles/iiw.dir/quic/transfert
+  OBJECT_DIR = CMakeFiles/iiw_server.dir
+  OBJECT_FILE_DIR = CMakeFiles/iiw_server.dir/quic/transfert
 
-build CMakeFiles/iiw.dir/errors.c.o: C_COMPILER__iiw_unscanned_Debug /home/andrea/CLionProjects/iiw/errors.c || cmake_object_order_depends_target_iiw
-  DEP_FILE = CMakeFiles/iiw.dir/errors.c.o.d
+build CMakeFiles/iiw_server.dir/errors.c.o: C_COMPILER__iiw_server_unscanned_Debug /home/andrea/CLionProjects/iiw/errors.c || cmake_object_order_depends_target_iiw_server
+  DEP_FILE = CMakeFiles/iiw_server.dir/errors.c.o.d
   FLAGS = -g -std=gnu11 -fdiagnostics-color=always
-  OBJECT_DIR = CMakeFiles/iiw.dir
-  OBJECT_FILE_DIR = CMakeFiles/iiw.dir
+  OBJECT_DIR = CMakeFiles/iiw_server.dir
+  OBJECT_FILE_DIR = CMakeFiles/iiw_server.dir
 
-build CMakeFiles/iiw.dir/client.c.o: C_COMPILER__iiw_unscanned_Debug /home/andrea/CLionProjects/iiw/client.c || cmake_object_order_depends_target_iiw
-  DEP_FILE = CMakeFiles/iiw.dir/client.c.o.d
+build CMakeFiles/iiw_server.dir/quic/quic_client.c.o: C_COMPILER__iiw_server_unscanned_Debug /home/andrea/CLionProjects/iiw/quic/quic_client.c || cmake_object_order_depends_target_iiw_server
+  DEP_FILE = CMakeFiles/iiw_server.dir/quic/quic_client.c.o.d
   FLAGS = -g -std=gnu11 -fdiagnostics-color=always
-  OBJECT_DIR = CMakeFiles/iiw.dir
-  OBJECT_FILE_DIR = CMakeFiles/iiw.dir
+  OBJECT_DIR = CMakeFiles/iiw_server.dir
+  OBJECT_FILE_DIR = CMakeFiles/iiw_server.dir/quic
 
-build CMakeFiles/iiw.dir/quic/quic_client.c.o: C_COMPILER__iiw_unscanned_Debug /home/andrea/CLionProjects/iiw/quic/quic_client.c || cmake_object_order_depends_target_iiw
-  DEP_FILE = CMakeFiles/iiw.dir/quic/quic_client.c.o.d
+build CMakeFiles/iiw_server.dir/quic/quic_server.c.o: C_COMPILER__iiw_server_unscanned_Debug /home/andrea/CLionProjects/iiw/quic/quic_server.c || cmake_object_order_depends_target_iiw_server
+  DEP_FILE = CMakeFiles/iiw_server.dir/quic/quic_server.c.o.d
   FLAGS = -g -std=gnu11 -fdiagnostics-color=always
-  OBJECT_DIR = CMakeFiles/iiw.dir
-  OBJECT_FILE_DIR = CMakeFiles/iiw.dir/quic
+  OBJECT_DIR = CMakeFiles/iiw_server.dir
+  OBJECT_FILE_DIR = CMakeFiles/iiw_server.dir/quic
 
-build CMakeFiles/iiw.dir/quic/quic_server.c.o: C_COMPILER__iiw_unscanned_Debug /home/andrea/CLionProjects/iiw/quic/quic_server.c || cmake_object_order_depends_target_iiw
-  DEP_FILE = CMakeFiles/iiw.dir/quic/quic_server.c.o.d
+build CMakeFiles/iiw_server.dir/quic/quic_errors.c.o: C_COMPILER__iiw_server_unscanned_Debug /home/andrea/CLionProjects/iiw/quic/quic_errors.c || cmake_object_order_depends_target_iiw_server
+  DEP_FILE = CMakeFiles/iiw_server.dir/quic/quic_errors.c.o.d
   FLAGS = -g -std=gnu11 -fdiagnostics-color=always
-  OBJECT_DIR = CMakeFiles/iiw.dir
-  OBJECT_FILE_DIR = CMakeFiles/iiw.dir/quic
+  OBJECT_DIR = CMakeFiles/iiw_server.dir
+  OBJECT_FILE_DIR = CMakeFiles/iiw_server.dir/quic
 
-build CMakeFiles/iiw.dir/quic/quic_errors.c.o: C_COMPILER__iiw_unscanned_Debug /home/andrea/CLionProjects/iiw/quic/quic_errors.c || cmake_object_order_depends_target_iiw
-  DEP_FILE = CMakeFiles/iiw.dir/quic/quic_errors.c.o.d
+build CMakeFiles/iiw_server.dir/quic/frames.c.o: C_COMPILER__iiw_server_unscanned_Debug /home/andrea/CLionProjects/iiw/quic/frames.c || cmake_object_order_depends_target_iiw_server
+  DEP_FILE = CMakeFiles/iiw_server.dir/quic/frames.c.o.d
   FLAGS = -g -std=gnu11 -fdiagnostics-color=always
-  OBJECT_DIR = CMakeFiles/iiw.dir
-  OBJECT_FILE_DIR = CMakeFiles/iiw.dir/quic
+  OBJECT_DIR = CMakeFiles/iiw_server.dir
+  OBJECT_FILE_DIR = CMakeFiles/iiw_server.dir/quic
 
-build CMakeFiles/iiw.dir/quic/frames.c.o: C_COMPILER__iiw_unscanned_Debug /home/andrea/CLionProjects/iiw/quic/frames.c || cmake_object_order_depends_target_iiw
-  DEP_FILE = CMakeFiles/iiw.dir/quic/frames.c.o.d
+build CMakeFiles/iiw_server.dir/quic/sliding_window.c.o: C_COMPILER__iiw_server_unscanned_Debug /home/andrea/CLionProjects/iiw/quic/sliding_window.c || cmake_object_order_depends_target_iiw_server
+  DEP_FILE = CMakeFiles/iiw_server.dir/quic/sliding_window.c.o.d
   FLAGS = -g -std=gnu11 -fdiagnostics-color=always
-  OBJECT_DIR = CMakeFiles/iiw.dir
-  OBJECT_FILE_DIR = CMakeFiles/iiw.dir/quic
+  OBJECT_DIR = CMakeFiles/iiw_server.dir
+  OBJECT_FILE_DIR = CMakeFiles/iiw_server.dir/quic
 
-build CMakeFiles/iiw.dir/quic/sliding_window.c.o: C_COMPILER__iiw_unscanned_Debug /home/andrea/CLionProjects/iiw/quic/sliding_window.c || cmake_object_order_depends_target_iiw
-  DEP_FILE = CMakeFiles/iiw.dir/quic/sliding_window.c.o.d
+build CMakeFiles/iiw_server.dir/quic/streams.c.o: C_COMPILER__iiw_server_unscanned_Debug /home/andrea/CLionProjects/iiw/quic/streams.c || cmake_object_order_depends_target_iiw_server
+  DEP_FILE = CMakeFiles/iiw_server.dir/quic/streams.c.o.d
   FLAGS = -g -std=gnu11 -fdiagnostics-color=always
-  OBJECT_DIR = CMakeFiles/iiw.dir
-  OBJECT_FILE_DIR = CMakeFiles/iiw.dir/quic
+  OBJECT_DIR = CMakeFiles/iiw_server.dir
+  OBJECT_FILE_DIR = CMakeFiles/iiw_server.dir/quic
 
-build CMakeFiles/iiw.dir/quic/streams.c.o: C_COMPILER__iiw_unscanned_Debug /home/andrea/CLionProjects/iiw/quic/streams.c || cmake_object_order_depends_target_iiw
-  DEP_FILE = CMakeFiles/iiw.dir/quic/streams.c.o.d
+build CMakeFiles/iiw_server.dir/quic/transfert/transfert_base.c.o: C_COMPILER__iiw_server_unscanned_Debug /home/andrea/CLionProjects/iiw/quic/transfert/transfert_base.c || cmake_object_order_depends_target_iiw_server
+  DEP_FILE = CMakeFiles/iiw_server.dir/quic/transfert/transfert_base.c.o.d
   FLAGS = -g -std=gnu11 -fdiagnostics-color=always
-  OBJECT_DIR = CMakeFiles/iiw.dir
-  OBJECT_FILE_DIR = CMakeFiles/iiw.dir/quic
+  OBJECT_DIR = CMakeFiles/iiw_server.dir
+  OBJECT_FILE_DIR = CMakeFiles/iiw_server.dir/quic/transfert
 
-build CMakeFiles/iiw.dir/quic/transfert/transfert_base.c.o: C_COMPILER__iiw_unscanned_Debug /home/andrea/CLionProjects/iiw/quic/transfert/transfert_base.c || cmake_object_order_depends_target_iiw
-  DEP_FILE = CMakeFiles/iiw.dir/quic/transfert/transfert_base.c.o.d
+build CMakeFiles/iiw_server.dir/quic/base.c.o: C_COMPILER__iiw_server_unscanned_Debug /home/andrea/CLionProjects/iiw/quic/base.c || cmake_object_order_depends_target_iiw_server
+  DEP_FILE = CMakeFiles/iiw_server.dir/quic/base.c.o.d
   FLAGS = -g -std=gnu11 -fdiagnostics-color=always
-  OBJECT_DIR = CMakeFiles/iiw.dir
-  OBJECT_FILE_DIR = CMakeFiles/iiw.dir/quic/transfert
+  OBJECT_DIR = CMakeFiles/iiw_server.dir
+  OBJECT_FILE_DIR = CMakeFiles/iiw_server.dir/quic
 
-build CMakeFiles/iiw.dir/quic/base.c.o: C_COMPILER__iiw_unscanned_Debug /home/andrea/CLionProjects/iiw/quic/base.c || cmake_object_order_depends_target_iiw
-  DEP_FILE = CMakeFiles/iiw.dir/quic/base.c.o.d
+build CMakeFiles/iiw_server.dir/quic/transfert/transfert_errors.c.o: C_COMPILER__iiw_server_unscanned_Debug /home/andrea/CLionProjects/iiw/quic/transfert/transfert_errors.c || cmake_object_order_depends_target_iiw_server
+  DEP_FILE = CMakeFiles/iiw_server.dir/quic/transfert/transfert_errors.c.o.d
   FLAGS = -g -std=gnu11 -fdiagnostics-color=always
-  OBJECT_DIR = CMakeFiles/iiw.dir
-  OBJECT_FILE_DIR = CMakeFiles/iiw.dir/quic
+  OBJECT_DIR = CMakeFiles/iiw_server.dir
+  OBJECT_FILE_DIR = CMakeFiles/iiw_server.dir/quic/transfert
 
-build CMakeFiles/iiw.dir/quic/transfert/transfert_errors.c.o: C_COMPILER__iiw_unscanned_Debug /home/andrea/CLionProjects/iiw/quic/transfert/transfert_errors.c || cmake_object_order_depends_target_iiw
-  DEP_FILE = CMakeFiles/iiw.dir/quic/transfert/transfert_errors.c.o.d
+build CMakeFiles/iiw_server.dir/quic/quic_transfert.c.o: C_COMPILER__iiw_server_unscanned_Debug /home/andrea/CLionProjects/iiw/quic/quic_transfert.c || cmake_object_order_depends_target_iiw_server
+  DEP_FILE = CMakeFiles/iiw_server.dir/quic/quic_transfert.c.o.d
   FLAGS = -g -std=gnu11 -fdiagnostics-color=always
-  OBJECT_DIR = CMakeFiles/iiw.dir
-  OBJECT_FILE_DIR = CMakeFiles/iiw.dir/quic/transfert
+  OBJECT_DIR = CMakeFiles/iiw_server.dir
+  OBJECT_FILE_DIR = CMakeFiles/iiw_server.dir/quic
 
 
 # =============================================================================
-# Link build statements for EXECUTABLE target iiw
+# Link build statements for EXECUTABLE target iiw_server
 
 
 #############################################
-# Link the executable iiw
+# Link the executable iiw_server
 
-build iiw: C_EXECUTABLE_LINKER__iiw_Debug CMakeFiles/iiw.dir/server.c.o CMakeFiles/iiw.dir/quic/varint.c.o CMakeFiles/iiw.dir/quic/quic_conn.c.o CMakeFiles/iiw.dir/quic/packets.c.o CMakeFiles/iiw.dir/quic/transfert/server_func.c.o CMakeFiles/iiw.dir/quic/transfert/client_func.c.o CMakeFiles/iiw.dir/quic/transfert/messages.c.o CMakeFiles/iiw.dir/errors.c.o CMakeFiles/iiw.dir/client.c.o CMakeFiles/iiw.dir/quic/quic_client.c.o CMakeFiles/iiw.dir/quic/quic_server.c.o CMakeFiles/iiw.dir/quic/quic_errors.c.o CMakeFiles/iiw.dir/quic/frames.c.o CMakeFiles/iiw.dir/quic/sliding_window.c.o CMakeFiles/iiw.dir/quic/streams.c.o CMakeFiles/iiw.dir/quic/transfert/transfert_base.c.o CMakeFiles/iiw.dir/quic/base.c.o CMakeFiles/iiw.dir/quic/transfert/transfert_errors.c.o
+build iiw_server: C_EXECUTABLE_LINKER__iiw_server_Debug CMakeFiles/iiw_server.dir/server.c.o CMakeFiles/iiw_server.dir/quic/varint.c.o CMakeFiles/iiw_server.dir/quic/quic_conn.c.o CMakeFiles/iiw_server.dir/quic/packets.c.o CMakeFiles/iiw_server.dir/quic/transfert/server_func.c.o CMakeFiles/iiw_server.dir/quic/transfert/client_func.c.o CMakeFiles/iiw_server.dir/quic/transfert/messages.c.o CMakeFiles/iiw_server.dir/errors.c.o CMakeFiles/iiw_server.dir/quic/quic_client.c.o CMakeFiles/iiw_server.dir/quic/quic_server.c.o CMakeFiles/iiw_server.dir/quic/quic_errors.c.o CMakeFiles/iiw_server.dir/quic/frames.c.o CMakeFiles/iiw_server.dir/quic/sliding_window.c.o CMakeFiles/iiw_server.dir/quic/streams.c.o CMakeFiles/iiw_server.dir/quic/transfert/transfert_base.c.o CMakeFiles/iiw_server.dir/quic/base.c.o CMakeFiles/iiw_server.dir/quic/transfert/transfert_errors.c.o CMakeFiles/iiw_server.dir/quic/quic_transfert.c.o
   FLAGS = -g
   LINK_LIBRARIES = -lm
-  OBJECT_DIR = CMakeFiles/iiw.dir
+  OBJECT_DIR = CMakeFiles/iiw_server.dir
   POST_BUILD = :
   PRE_LINK = :
-  TARGET_FILE = iiw
-  TARGET_PDB = iiw.dbg
+  TARGET_FILE = iiw_server
+  TARGET_PDB = iiw_server.dbg
+
+# =============================================================================
+# Object build statements for EXECUTABLE target iiw_client
+
+
+#############################################
+# Order-only phony target for iiw_client
+
+build cmake_object_order_depends_target_iiw_client: phony || CMakeFiles/iiw_client.dir
+
+build CMakeFiles/iiw_client.dir/quic/varint.c.o: C_COMPILER__iiw_client_unscanned_Debug /home/andrea/CLionProjects/iiw/quic/varint.c || cmake_object_order_depends_target_iiw_client
+  DEP_FILE = CMakeFiles/iiw_client.dir/quic/varint.c.o.d
+  FLAGS = -g -std=gnu11 -fdiagnostics-color=always
+  OBJECT_DIR = CMakeFiles/iiw_client.dir
+  OBJECT_FILE_DIR = CMakeFiles/iiw_client.dir/quic
+
+build CMakeFiles/iiw_client.dir/quic/quic_conn.c.o: C_COMPILER__iiw_client_unscanned_Debug /home/andrea/CLionProjects/iiw/quic/quic_conn.c || cmake_object_order_depends_target_iiw_client
+  DEP_FILE = CMakeFiles/iiw_client.dir/quic/quic_conn.c.o.d
+  FLAGS = -g -std=gnu11 -fdiagnostics-color=always
+  OBJECT_DIR = CMakeFiles/iiw_client.dir
+  OBJECT_FILE_DIR = CMakeFiles/iiw_client.dir/quic
+
+build CMakeFiles/iiw_client.dir/quic/packets.c.o: C_COMPILER__iiw_client_unscanned_Debug /home/andrea/CLionProjects/iiw/quic/packets.c || cmake_object_order_depends_target_iiw_client
+  DEP_FILE = CMakeFiles/iiw_client.dir/quic/packets.c.o.d
+  FLAGS = -g -std=gnu11 -fdiagnostics-color=always
+  OBJECT_DIR = CMakeFiles/iiw_client.dir
+  OBJECT_FILE_DIR = CMakeFiles/iiw_client.dir/quic
+
+build CMakeFiles/iiw_client.dir/quic/transfert/server_func.c.o: C_COMPILER__iiw_client_unscanned_Debug /home/andrea/CLionProjects/iiw/quic/transfert/server_func.c || cmake_object_order_depends_target_iiw_client
+  DEP_FILE = CMakeFiles/iiw_client.dir/quic/transfert/server_func.c.o.d
+  FLAGS = -g -std=gnu11 -fdiagnostics-color=always
+  OBJECT_DIR = CMakeFiles/iiw_client.dir
+  OBJECT_FILE_DIR = CMakeFiles/iiw_client.dir/quic/transfert
+
+build CMakeFiles/iiw_client.dir/quic/transfert/client_func.c.o: C_COMPILER__iiw_client_unscanned_Debug /home/andrea/CLionProjects/iiw/quic/transfert/client_func.c || cmake_object_order_depends_target_iiw_client
+  DEP_FILE = CMakeFiles/iiw_client.dir/quic/transfert/client_func.c.o.d
+  FLAGS = -g -std=gnu11 -fdiagnostics-color=always
+  OBJECT_DIR = CMakeFiles/iiw_client.dir
+  OBJECT_FILE_DIR = CMakeFiles/iiw_client.dir/quic/transfert
+
+build CMakeFiles/iiw_client.dir/quic/transfert/messages.c.o: C_COMPILER__iiw_client_unscanned_Debug /home/andrea/CLionProjects/iiw/quic/transfert/messages.c || cmake_object_order_depends_target_iiw_client
+  DEP_FILE = CMakeFiles/iiw_client.dir/quic/transfert/messages.c.o.d
+  FLAGS = -g -std=gnu11 -fdiagnostics-color=always
+  OBJECT_DIR = CMakeFiles/iiw_client.dir
+  OBJECT_FILE_DIR = CMakeFiles/iiw_client.dir/quic/transfert
+
+build CMakeFiles/iiw_client.dir/errors.c.o: C_COMPILER__iiw_client_unscanned_Debug /home/andrea/CLionProjects/iiw/errors.c || cmake_object_order_depends_target_iiw_client
+  DEP_FILE = CMakeFiles/iiw_client.dir/errors.c.o.d
+  FLAGS = -g -std=gnu11 -fdiagnostics-color=always
+  OBJECT_DIR = CMakeFiles/iiw_client.dir
+  OBJECT_FILE_DIR = CMakeFiles/iiw_client.dir
+
+build CMakeFiles/iiw_client.dir/client.c.o: C_COMPILER__iiw_client_unscanned_Debug /home/andrea/CLionProjects/iiw/client.c || cmake_object_order_depends_target_iiw_client
+  DEP_FILE = CMakeFiles/iiw_client.dir/client.c.o.d
+  FLAGS = -g -std=gnu11 -fdiagnostics-color=always
+  OBJECT_DIR = CMakeFiles/iiw_client.dir
+  OBJECT_FILE_DIR = CMakeFiles/iiw_client.dir
+
+build CMakeFiles/iiw_client.dir/quic/quic_client.c.o: C_COMPILER__iiw_client_unscanned_Debug /home/andrea/CLionProjects/iiw/quic/quic_client.c || cmake_object_order_depends_target_iiw_client
+  DEP_FILE = CMakeFiles/iiw_client.dir/quic/quic_client.c.o.d
+  FLAGS = -g -std=gnu11 -fdiagnostics-color=always
+  OBJECT_DIR = CMakeFiles/iiw_client.dir
+  OBJECT_FILE_DIR = CMakeFiles/iiw_client.dir/quic
+
+build CMakeFiles/iiw_client.dir/quic/quic_server.c.o: C_COMPILER__iiw_client_unscanned_Debug /home/andrea/CLionProjects/iiw/quic/quic_server.c || cmake_object_order_depends_target_iiw_client
+  DEP_FILE = CMakeFiles/iiw_client.dir/quic/quic_server.c.o.d
+  FLAGS = -g -std=gnu11 -fdiagnostics-color=always
+  OBJECT_DIR = CMakeFiles/iiw_client.dir
+  OBJECT_FILE_DIR = CMakeFiles/iiw_client.dir/quic
+
+build CMakeFiles/iiw_client.dir/quic/quic_errors.c.o: C_COMPILER__iiw_client_unscanned_Debug /home/andrea/CLionProjects/iiw/quic/quic_errors.c || cmake_object_order_depends_target_iiw_client
+  DEP_FILE = CMakeFiles/iiw_client.dir/quic/quic_errors.c.o.d
+  FLAGS = -g -std=gnu11 -fdiagnostics-color=always
+  OBJECT_DIR = CMakeFiles/iiw_client.dir
+  OBJECT_FILE_DIR = CMakeFiles/iiw_client.dir/quic
+
+build CMakeFiles/iiw_client.dir/quic/frames.c.o: C_COMPILER__iiw_client_unscanned_Debug /home/andrea/CLionProjects/iiw/quic/frames.c || cmake_object_order_depends_target_iiw_client
+  DEP_FILE = CMakeFiles/iiw_client.dir/quic/frames.c.o.d
+  FLAGS = -g -std=gnu11 -fdiagnostics-color=always
+  OBJECT_DIR = CMakeFiles/iiw_client.dir
+  OBJECT_FILE_DIR = CMakeFiles/iiw_client.dir/quic
+
+build CMakeFiles/iiw_client.dir/quic/sliding_window.c.o: C_COMPILER__iiw_client_unscanned_Debug /home/andrea/CLionProjects/iiw/quic/sliding_window.c || cmake_object_order_depends_target_iiw_client
+  DEP_FILE = CMakeFiles/iiw_client.dir/quic/sliding_window.c.o.d
+  FLAGS = -g -std=gnu11 -fdiagnostics-color=always
+  OBJECT_DIR = CMakeFiles/iiw_client.dir
+  OBJECT_FILE_DIR = CMakeFiles/iiw_client.dir/quic
+
+build CMakeFiles/iiw_client.dir/quic/streams.c.o: C_COMPILER__iiw_client_unscanned_Debug /home/andrea/CLionProjects/iiw/quic/streams.c || cmake_object_order_depends_target_iiw_client
+  DEP_FILE = CMakeFiles/iiw_client.dir/quic/streams.c.o.d
+  FLAGS = -g -std=gnu11 -fdiagnostics-color=always
+  OBJECT_DIR = CMakeFiles/iiw_client.dir
+  OBJECT_FILE_DIR = CMakeFiles/iiw_client.dir/quic
+
+build CMakeFiles/iiw_client.dir/quic/transfert/transfert_base.c.o: C_COMPILER__iiw_client_unscanned_Debug /home/andrea/CLionProjects/iiw/quic/transfert/transfert_base.c || cmake_object_order_depends_target_iiw_client
+  DEP_FILE = CMakeFiles/iiw_client.dir/quic/transfert/transfert_base.c.o.d
+  FLAGS = -g -std=gnu11 -fdiagnostics-color=always
+  OBJECT_DIR = CMakeFiles/iiw_client.dir
+  OBJECT_FILE_DIR = CMakeFiles/iiw_client.dir/quic/transfert
+
+build CMakeFiles/iiw_client.dir/quic/base.c.o: C_COMPILER__iiw_client_unscanned_Debug /home/andrea/CLionProjects/iiw/quic/base.c || cmake_object_order_depends_target_iiw_client
+  DEP_FILE = CMakeFiles/iiw_client.dir/quic/base.c.o.d
+  FLAGS = -g -std=gnu11 -fdiagnostics-color=always
+  OBJECT_DIR = CMakeFiles/iiw_client.dir
+  OBJECT_FILE_DIR = CMakeFiles/iiw_client.dir/quic
+
+build CMakeFiles/iiw_client.dir/quic/transfert/transfert_errors.c.o: C_COMPILER__iiw_client_unscanned_Debug /home/andrea/CLionProjects/iiw/quic/transfert/transfert_errors.c || cmake_object_order_depends_target_iiw_client
+  DEP_FILE = CMakeFiles/iiw_client.dir/quic/transfert/transfert_errors.c.o.d
+  FLAGS = -g -std=gnu11 -fdiagnostics-color=always
+  OBJECT_DIR = CMakeFiles/iiw_client.dir
+  OBJECT_FILE_DIR = CMakeFiles/iiw_client.dir/quic/transfert
+
+build CMakeFiles/iiw_client.dir/quic/quic_transfert.c.o: C_COMPILER__iiw_client_unscanned_Debug /home/andrea/CLionProjects/iiw/quic/quic_transfert.c || cmake_object_order_depends_target_iiw_client
+  DEP_FILE = CMakeFiles/iiw_client.dir/quic/quic_transfert.c.o.d
+  FLAGS = -g -std=gnu11 -fdiagnostics-color=always
+  OBJECT_DIR = CMakeFiles/iiw_client.dir
+  OBJECT_FILE_DIR = CMakeFiles/iiw_client.dir/quic
+
+
+# =============================================================================
+# Link build statements for EXECUTABLE target iiw_client
+
+
+#############################################
+# Link the executable iiw_client
+
+build iiw_client: C_EXECUTABLE_LINKER__iiw_client_Debug CMakeFiles/iiw_client.dir/quic/varint.c.o CMakeFiles/iiw_client.dir/quic/quic_conn.c.o CMakeFiles/iiw_client.dir/quic/packets.c.o CMakeFiles/iiw_client.dir/quic/transfert/server_func.c.o CMakeFiles/iiw_client.dir/quic/transfert/client_func.c.o CMakeFiles/iiw_client.dir/quic/transfert/messages.c.o CMakeFiles/iiw_client.dir/errors.c.o CMakeFiles/iiw_client.dir/client.c.o CMakeFiles/iiw_client.dir/quic/quic_client.c.o CMakeFiles/iiw_client.dir/quic/quic_server.c.o CMakeFiles/iiw_client.dir/quic/quic_errors.c.o CMakeFiles/iiw_client.dir/quic/frames.c.o CMakeFiles/iiw_client.dir/quic/sliding_window.c.o CMakeFiles/iiw_client.dir/quic/streams.c.o CMakeFiles/iiw_client.dir/quic/transfert/transfert_base.c.o CMakeFiles/iiw_client.dir/quic/base.c.o CMakeFiles/iiw_client.dir/quic/transfert/transfert_errors.c.o CMakeFiles/iiw_client.dir/quic/quic_transfert.c.o
+  FLAGS = -g
+  LINK_LIBRARIES = -lm
+  OBJECT_DIR = CMakeFiles/iiw_client.dir
+  POST_BUILD = :
+  PRE_LINK = :
+  TARGET_FILE = iiw_client
+  TARGET_PDB = iiw_client.dbg
 
 
 #############################################
@@ -208,7 +342,7 @@ build rebuild_cache: phony CMakeFiles/rebuild_cache.util
 #############################################
 # Folder: /home/andrea/CLionProjects/iiw/cmake-build-debug
 
-build all: phony iiw
+build all: phony iiw_server iiw_client
 
 # =============================================================================
 # Built-in targets

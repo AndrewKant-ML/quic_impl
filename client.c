@@ -6,7 +6,7 @@
 
 char *serv_addr = "127.0.0.1";
 int serv_port = 5010;
-double loss_prob = 0;
+double loss_prob = 0.2;
 int verbose = 0;
 
 int main(int argc, char *argv[]) {
@@ -65,12 +65,13 @@ int main(int argc, char *argv[]) {
             // Checks if socket is readable
             if (FD_ISSET(sock, &rset)) {
                 // Must read something
-                if ((n = recvfrom(sock, buf, sizeof(buf), 0, (struct sockaddr *) &addr, &addr_len)) < 0) {
+                if ((n = recvfrom(sock, buf, sizeof buf, 0, NULL, NULL)) < 0) {
                     print_error("Error while reading from socket");
                     // todo close everything
                 }
 
                 if (n >= MIN_DATAGRAM_SIZE) {
+                    printf("%s\n\n\n", buf);
                     if ((curr_time = get_time_millis()) < 0) {
                         log_quic_error("Cannot get current time");
                     } else if (process_incoming_dgram(buf, n, CLIENT, &addr, curr_time, NULL) != -1) {
@@ -81,28 +82,69 @@ int main(int argc, char *argv[]) {
                             else
                                 log_quic_error("Error while processing received packets");
                         }
-
-                        if (conn->swnd->write_index != conn->swnd->read_index) {
-                            // There are packets to send
-                            if (send_packets(sock, conn) == 0)
-                                log_msg("Packets sent successfully");
-                            else
-                                log_quic_error("Error while sending enqueued packets");
-                        }
                     } else {
                         log_quic_error("Error while processing incoming datagram");
                     }
                 } else {
                     log_quic_error("Incoming datagram is too short");
                 }
-                memset(buf, 0, MAX_DATAGRAM_SIZE);
+            }
+
+            if (process_file_requests(conn) == -1)
+                log_quic_error("Error while processing file requests");
+
+            if (conn->swnd->write_index != conn->swnd->read_index) {
+                // There are packets to send
+                if (send_packets(sock, conn) == 0)
+                    log_msg("Packets sent successfully");
+                else
+                    log_quic_error("Error while sending enqueued packets");
             }
 
             if (FD_ISSET(fileno(stdin), &rset)) {
                 if (scanf("%s", msg) == 1) {
                     if (check_msg_semantics(msg) == 0) {
                         // TODO build and send packet
-
+                        stream_id sid;
+                        switch (get_message_type(msg)) {
+                            case LIST: {
+                                if ((sid = open_stream(CLIENT, BIDIRECTIONAL, conn)) != (stream_id) -1) {
+                                    if (write_message_to_packets(msg, sid, false, conn) != 0)
+                                        log_quic_error("Error while creating message packets");
+                                    else
+                                        log_msg("Successfully sent LIST command");
+                                }
+                                break;
+                            }
+                            case GET: {
+                                break;
+                            }
+                            case PUT: {
+                                if ((sid = open_stream(CLIENT, BIDIRECTIONAL, conn)) != (stream_id) -1) {
+                                    // Sends data to stream
+                                    if (write_message_to_packets(msg, sid, false, conn) != 0)
+                                        log_quic_error("Error while creating message packets");
+                                    else {
+                                        char *file_name = parse_get_or_put_msg(msg);
+                                        if (add_file_req(file_name, conn) == 0)
+                                            log_msg("Successfully added file request");
+                                        else
+                                            log_quic_error("Errors while adding file request");
+                                    }
+                                } else {
+                                    log_quic_error("Cannot open a new bidirectional stream");
+                                }
+                                break;
+                            }
+                            default: {
+                                log_quic_error("Unrecognized Transfert command");
+                                break;
+                            }
+                        }
+                        if (send_packets(sock, conn) == 0)
+                            log_msg("Packets sent successfully");
+                        else
+                            log_quic_error("Error while sending packets");
                     }
                 }
             }

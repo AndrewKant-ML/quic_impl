@@ -64,8 +64,6 @@ typedef struct ack_range_t ack_range;
 
 typedef struct frame_t frame;
 
-typedef struct conn_set_t conn_set;
-
 enum PacketType {
     TYPE_INITIAL,
     TYPE_RETRY,

@@ -167,7 +167,7 @@ ssize_t process_received_packets(quic_connection *);
 
 void build_initial_packet(conn_id, conn_id, size_t, size_t, void *, pkt_num, initial_packet *);
 
-void build_one_rtt_packet(conn_id dest_conn_id, size_t, void *payload, one_rtt_packet *pkt);
+void build_one_rtt_packet(conn_id dest_conn_id, size_t, pkt_num, void *payload, one_rtt_packet *pkt);
 
 ssize_t write_packet_to_buf(char *, size_t off, const void *);
 
@@ -187,9 +187,7 @@ int read_zero_rtt_packet(long_header_pkt *, zero_rtt_packet *);
 
 int read_retry_packet(long_header_pkt *, retry_packet *);
 
-int read_one_rtt_packet(void *, one_rtt_packet *);
-
-int set_pkt_num(void *, pkt_num);
+int read_one_rtt_packet(char *, one_rtt_packet *);
 
 int process_packet_payload(const char *, pkt_num, size_t, num_space, quic_connection *);
 

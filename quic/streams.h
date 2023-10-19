@@ -25,20 +25,43 @@
 #define CLIENT_UNI_BASE 0x02
 #define SERVER_UNI_BASE 0x03
 
-enum stream_mode {
+enum StreamMode {
     UNIDIRECTIONAL,
     BIDIRECTIONAL
 };
 
-struct stream_t {
-    stream_id id;
-    enum stream_mode mode;
-    enum PeerType peer;
-    size_t size;
+enum SendingState {
+    READY,
+    SEND,
+    DATA_SENT,
+    RESET_SENT,
+    DATA_RECVD_S,
+    RESET_RECVD_S
 };
 
-void open_stream(enum PeerType, enum stream_mode, stream *);
+enum ReceivingState {
+    RECV,
+    SIZE_KNOWN,
+    DATA_RECVD_R,
+    RESET_RECVD_R,
+    DATA_READ,
+    RESET_READ
+};
 
-uint64_t new_stream_id(enum PeerType, enum stream_mode);
+struct stream_t {
+    stream_id id;
+    enum StreamMode mode;
+    enum PeerType peer;
+    size_t size;
+    enum SendingState sending_state;
+};
+
+stream_id get_stream(enum PeerType, enum StreamMode, quic_connection *);
+
+void new_stream(enum PeerType, enum StreamMode, quic_connection *, stream *);
+
+stream_id open_stream(enum PeerType, enum StreamMode, quic_connection *);
+
+uint64_t new_stream_id(enum PeerType, enum StreamMode, quic_connection *);
 
 #endif //STREAMS

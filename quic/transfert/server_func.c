@@ -43,7 +43,6 @@ void write_response(uint8_t code, char *list, char *buf) {
     if (list != NULL) {
         // Response
         strcat(buf, (char *) &code);
-        strcat(buf, "\r\n");
         strcat(buf, list);
     } else {
         // No response
@@ -52,9 +51,30 @@ void write_response(uint8_t code, char *list, char *buf) {
 }
 
 /**
- * @brief Executes actions upon the received message
- * @param raw
+ * @brief Executes a Transfert GET request
+ *
+ * @param file_name     the file name
  * @return
+ */
+int exec_get_request(char *file_name) {
+    return open(file_name, O_RDONLY, 0400);
+}
+
+/**
+ * @brief Executes a Transfert GET request
+ *
+ * @param file_name     the file name
+ * @return
+ */
+char *exec_put_request(char *file_name) {
+
+}
+
+/**
+ * @brief Executes actions upon the received message
+ *
+ * @param raw   the raw transfert message
+ * @return      the request parameter, NULL if the request is bad formatted
  */
 char *exec(transfert_msg *msg) {
     switch (msg->type) {
@@ -71,7 +91,7 @@ char *exec(transfert_msg *msg) {
                 return NULL;
             } else
                 // Execute GET request
-                break;
+                return file_name;
         }
         case PUT: {
             char *file_name = parse_get_or_put_msg(msg->msg);
@@ -79,7 +99,7 @@ char *exec(transfert_msg *msg) {
                 print_transfert_error("PUT command bad formatting.");
                 return NULL;
             } else
-
+                // Execute PUT request
                 break;
         }
         case DATA:

@@ -8,7 +8,7 @@
 #include "quic_conn.h"
 
 // Array of all opened connections
-static quic_connection **connections = NULL;
+quic_connection **connections = NULL;
 size_t active_connections = 0;
 size_t last_checked = 0;
 
@@ -69,8 +69,12 @@ conn_id get_random_peer_conn_id(quic_connection *conn) {
  * @return      0 on success, -1 on errors
  */
 int new_connection(quic_connection *conn, enum PeerType type) {
-    if (connections == NULL)
+    int i = 0;
+    if (connections == NULL) {
         connections = (quic_connection **) calloc(MAX_CONNECTIONS, sizeof(quic_connection *));
+        for (i = 0; i < MAX_CONNECTIONS; i++)
+            connections[i] = NULL;
+    }
 
     conn->peer_type = type;
     conn->local_conn_ids_num = 0;
@@ -103,6 +107,10 @@ int new_connection(quic_connection *conn, enum PeerType type) {
     conn->swnd->largest_acked[HANDSHAKE] = UINT32_MAX;
     conn->swnd->largest_acked[APPLICATION_DATA] = UINT32_MAX;
 
+    conn->swnd->largest_in_space[INITIAL] = 0;
+    conn->swnd->largest_in_space[HANDSHAKE] = 0;
+    conn->swnd->largest_in_space[APPLICATION_DATA] = 0;
+
     conn->swnd->time_of_last_ack_eliciting_packet[INITIAL] = 0;
     conn->swnd->time_of_last_ack_eliciting_packet[HANDSHAKE] = 0;
     conn->swnd->time_of_last_ack_eliciting_packet[APPLICATION_DATA] = 0;
@@ -116,20 +124,19 @@ int new_connection(quic_connection *conn, enum PeerType type) {
     conn->rwnd->write_index = 0;
     conn->rwnd->read_index = 0;
 
-    for (int i = 0; i < BUF_CAPACITY; i++) {
+    for (i = 0; i < BUF_CAPACITY; i++) {
         conn->swnd->buffer[i] = (outgoing_packet *) calloc(1, sizeof(outgoing_packet));
         conn->rwnd->buffer[i] = (incoming_packet *) calloc(1, sizeof(incoming_packet));
     }
 
     conn->peer_conn_ids = (conn_id *) calloc(1, sizeof(conn_id));
-    conn->local_conn_ids_num = 0;
     conn->peer_conn_ids_num = 0;
     conn->peer_conn_ids_limit = 1;
     conn->handshake_done = false;
     conn->max_datagram_size = MAX_DATAGRAM_SIZE;
 
     // Saves newly created connection into active connections array
-    int i = 0;
+    i = 0;
     while (i < MAX_CONNECTIONS && connections[i] != NULL)
         i++;
     if (i >= MAX_CONNECTIONS) {
@@ -138,8 +145,12 @@ int new_connection(quic_connection *conn, enum PeerType type) {
         free(conn);
         return -1;
     }
-    connections[i] = conn;
-    active_connections++;
+
+    for (i = 0; i < TRANSFERT_MAX_REQUESTS; i++)
+        conn->sending_requests[i] = NULL;
+    conn->requests_num = 0;
+
+    connections[active_connections++] = conn;
     return 0;
 }
 
@@ -324,6 +335,8 @@ quic_connection *multiplex(conn_id id) {
  */
 int enqueue(outgoing_packet *pkt, quic_connection *conn) {
     int ret = put_in_sender_window(conn->swnd, pkt);
+    if (conn->swnd->largest_in_space[pkt->space] < pkt->pkt_num)
+        conn->swnd->largest_in_space[pkt->space] = pkt->pkt_num;
     log_msg("Packet enqueued");
     return ret;
 }
@@ -341,7 +354,7 @@ int send_packets(int sd, quic_connection *conn) {
     long send_time;
     outgoing_packet *pkt, *packets[1024];
     size_t count, off, i;
-    char buf[conn->max_datagram_size];
+    char *buf = (char *) calloc(1, conn->max_datagram_size);
     // Checks congestion control limits and number of packets to send
     while (conn->bytes_in_flight < conn->cwnd && count_to_be_sent(conn->swnd) > 0) {
         count = 0;
@@ -359,9 +372,17 @@ int send_packets(int sd, quic_connection *conn) {
                 // There are no more packets to send
                 ssize_t diff = MIN_DATAGRAM_SIZE - (off + pkt->length);
                 if (diff > 0) {
-                    // Pad packet payload
-                    if (pad_packet(pkt, diff) != 0) {
-                        log_quic_error("Error while padding packet");
+                    void *p = realloc(pkt->pkt, diff);
+                    if (p != NULL) {
+                        pkt->pkt = p;
+                        // Pad packet payload
+                        if (pad_packet(pkt, diff) != 0) {
+                            log_quic_error("Error while padding packet");
+                            return -1;
+                        }
+                        pkt->length = MIN_DATAGRAM_SIZE;
+                    } else {
+                        log_quic_error("Realloc error");
                         return -1;
                     }
                 }
@@ -374,7 +395,7 @@ int send_packets(int sd, quic_connection *conn) {
                 return -1;
             }
 
-            memcpy(&buf[off], pkt->pkt, pkt->length);
+            memcpy(buf + off, pkt->pkt, pkt->length);
             pkt->ready_to_send = true;
             off += pkt->length;
             packets[i++] = pkt;
@@ -382,7 +403,7 @@ int send_packets(int sd, quic_connection *conn) {
             pkt = get_oldest_not_ready(conn->swnd);
         }
         ssize_t n = sendto(sd, buf, off, 0, (struct sockaddr *) &conn->addr,
-                           sizeof(conn->addr));
+                           (socklen_t) sizeof(conn->addr));
         conn->last_active = get_time_millis();
         if (n > 0) {
             if ((send_time = get_time_millis()) != -1) {
@@ -712,6 +733,29 @@ void on_loss_detection_timeout(quic_connection *conn) {
 }
 
 /**
+ * @brief Adds a file request on the queue
+ *
+ * @param file_name the file name
+ * @param conn      the QUICLite connection
+ * @return          0 on success, -1 on errors
+ */
+int add_file_req(char *file_name, quic_connection *conn) {
+    if (conn->requests_num >= TRANSFERT_MAX_REQUESTS) {
+        log_quic_error("Reached maximum requests number");
+        return -1;
+    }
+    int i = 0;
+    while (i < TRANSFERT_MAX_REQUESTS && conn->sending_requests[i] != NULL)
+        i++;
+    if (i >= TRANSFERT_MAX_REQUESTS) {
+        log_quic_error("Reached maximum requests number");
+        return -1;
+    }
+    conn->sending_requests[i] = file_name;
+    return 0;
+}
+
+/**
  * @brief Detects and remove lost packet in a certain space from the sender window
  *
  * @param conn          the connection
@@ -883,8 +927,7 @@ int close_connection_with_error_code(int fd, conn_id dest_conn_id, conn_id src_c
         // Handshake phase, send frame in Initial packet
         initial_packet pkt;
         build_initial_packet(dest_conn_id, src_conn_id, strlen(stream_buf), 0, stream_buf,
-                             get_largest_in_space(conn->swnd, INITIAL)->pkt_num + 1, &pkt);
-        set_pkt_num((void *) &pkt, 1);
+                             conn->swnd->largest_in_space[INITIAL] + 1, &pkt);
         size_t initial_len = initial_pkt_len(&pkt);
         char *buf = (char *) malloc(initial_len);
         write_packet_to_buf(buf, initial_len, (void *) &pkt);
@@ -898,9 +941,8 @@ int close_connection_with_error_code(int fd, conn_id dest_conn_id, conn_id src_c
     } else {
         // Handshake done, send frame in 1-RTT packet
         one_rtt_packet pkt;
-        build_one_rtt_packet(dest_conn_id, strlen(stream_buf), (void *) stream_buf, &pkt);
-        pkt_num largest = get_largest_in_space(conn->swnd, APPLICATION_DATA)->pkt_num + 1;
-        set_pkt_num(&pkt, largest);
+        build_one_rtt_packet(dest_conn_id, strlen(stream_buf), conn->swnd->largest_in_space[APPLICATION_DATA] + 1,
+                             (void *) stream_buf, &pkt);
         size_t one_rtt_len = one_rtt_pkt_len(&pkt);
         char *buf = (char *) malloc(one_rtt_len);
         write_packet_to_buf(buf, one_rtt_len, &pkt);

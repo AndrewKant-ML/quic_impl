@@ -11,6 +11,7 @@
 #include <arpa/inet.h>
 
 #include "quic/quic_client.h"
+#include "quic/quic_transfert.h"
 #include "errors.h"
 
 void process_arguments(int, char *[]);

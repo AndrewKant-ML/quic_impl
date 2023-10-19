@@ -81,6 +81,9 @@
 // Maximum buffer packets capacity
 #define BUF_CAPACITY 1024
 
+// Maximum number of per-connection Transfert requests that can be managed
+#define TRANSFERT_MAX_REQUESTS 20
+
 /* === SENDER WINDOW === */
 
 struct sender_window_t {
@@ -89,6 +92,7 @@ struct sender_window_t {
     time_ms time_of_last_ack_eliciting_packet[3];
     time_ms loss_time[3];
     pkt_num largest_acked[3];
+    pkt_num largest_in_space[3];
     size_t write_index;
     size_t read_index;
 };
@@ -104,8 +108,6 @@ int is_lost(sender_window *, outgoing_packet *, size_t, time_t);
 size_t count_to_be_sent(sender_window *);
 
 outgoing_packet *get_pkt_num_in_space(const sender_window *, pkt_num, num_space);
-
-outgoing_packet *get_largest_in_space(const sender_window *, num_space);
 
 outgoing_packet *get_largest_acked_in_space(const sender_window *, num_space);
 
@@ -182,7 +184,7 @@ struct quic_connection_t {
     size_t max_streams_bidi;                    // Maximum number of bidirectional streams this peer can open towards the other peer
     size_t max_streams_uni;                     // Maximum number of unidirectional streams this peer can open towards the other peer
     unsigned short ack_delay_exp;               // Must be <= 20, default 3
-    unsigned short conn_max_ack_delay;               // Must be < 16384 (2^14)
+    unsigned short conn_max_ack_delay;          // Must be < 16384 (2^14)
     size_t active_conn_id_limit;                // Must be >=2, default 2
 
     // PTO parameters
@@ -198,6 +200,10 @@ struct quic_connection_t {
     size_t ssthresh;                            // Slow start threshold (in bytes)
 
     time_ms last_active;
+
+    // Transfert file to be sent
+    char *sending_requests[TRANSFERT_MAX_REQUESTS];
+    size_t requests_num;
 };
 
 int init();
@@ -243,6 +249,8 @@ time_ms get_pto_time(quic_connection *, num_space *);
 void set_loss_detection_timer(quic_connection *);
 
 void on_loss_detection_timeout(quic_connection *);
+
+int add_file_req(char *, quic_connection *);
 
 int detect_and_remove_lost_packets(quic_connection *, num_space, outgoing_packet *[BUF_CAPACITY]);
 

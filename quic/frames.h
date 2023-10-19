@@ -20,8 +20,10 @@
 #include "varint.h"
 #include "quic_conn.h"
 #include "quic_errors.h"
+#include "quic_client.h"
 
 #include "transfert/transfert_base.h"
+#include "transfert/server_func.h"
 
 #define TYPE_PADDING 0x00
 #define TYPE_PING 0x01
@@ -56,7 +58,7 @@
 
 struct frame_t {
     uint8_t type;
-    void *frame_data;
+    char *frame_data;
 };
 
 // ACK Range
@@ -82,7 +84,7 @@ void new_close_connection_frame(uint64_t, char *, char *);
 
 void new_reset_stream_frame(stream_id, uint64_t, char *);
 
-size_t new_stream_frame(stream_id, size_t, size_t, char *, char *);
+size_t new_stream_frame(stream_id, size_t, size_t, bool, char *, char *);
 
 ssize_t process_frame(const char *, pkt_num, num_space, quic_connection *);
 
@@ -91,5 +93,9 @@ ssize_t parse_ack_frame(const char *, ack_frame *, const quic_connection *, time
 char *write_frame_into_buf(frame *, size_t *);
 
 ssize_t ack_frame_len(ack_frame *);
+
+int write_message_to_packets(char *, stream_id, bool, quic_connection *);
+
+size_t create_response_frames(char *, stream_id, size_t, frame **);
 
 #endif //FRAMES

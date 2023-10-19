@@ -23,13 +23,10 @@ static const char *PATTERNS[] = {LIST_CMD_RGX, GET_CMD_RGX, PUT_CMD_RGX};
 
 #define BASE_DIR "./../files"
 
-typedef struct data_msg_t {
+struct data_msg_t {
     char *file_name;
-    size_t size;
-    size_t offset;
-    size_t length;
-    void *data;
-} data_msg;
+    char *data;
+};
 
 enum message_type {
     LIST,
@@ -51,11 +48,11 @@ void new_transfert_msg(transfert_msg *);
 
 int check_msg_semantics(char *);
 
-size_t data_msg_len(data_msg *);
+//size_t data_msg_len(data_msg *);
 
-int write_data_msg_to_buf(char *, data_msg *);
+//int write_data_msg_to_buf(char *, data_msg *);
 
-enum message_type get_incoming_message_type(const char *);
+enum message_type get_message_type(const char *);
 
 int parse_and_exec_data_msg(char *);
 
